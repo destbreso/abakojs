@@ -1,4 +1,4 @@
-// Type definitions for money-math-recipes
+// Type definitions for abakojs
 // Zero-dependency monetary arithmetic · ESM + CJS · TypeScript ready
 
 export declare class ArgumentError extends Error {
@@ -6,15 +6,85 @@ export declare class ArgumentError extends Error {
   name: "ArgumentError";
 }
 
+// ─── Rounding ───────────────────────────────────────────────────────────────
+
+/** Rounding mode names. Default is HALF_EVEN (banker's). */
+export type RoundingMode =
+  | "HALF_EVEN"
+  | "HALF_UP"
+  | "HALF_DOWN"
+  | "UP"
+  | "DOWN"
+  | "CEIL"
+  | "FLOOR";
+
+/** Rounding-mode constants (use these instead of raw strings). */
+export declare const RoundingMode: {
+  readonly HALF_EVEN: "HALF_EVEN";
+  readonly HALF_UP: "HALF_UP";
+  readonly HALF_DOWN: "HALF_DOWN";
+  readonly UP: "UP";
+  readonly DOWN: "DOWN";
+  readonly CEIL: "CEIL";
+  readonly FLOOR: "FLOOR";
+};
+
+/** Set the process-wide default rounding mode (default: HALF_EVEN). */
+export declare function setDefaultRounding(mode: RoundingMode): void;
+
+/** Get the current default rounding mode. */
+export declare function getDefaultRounding(): RoundingMode;
+
+// ─── Fluent chain (optional convenience) ────────────────────────────────────
+
+/** A fluent, immutable pipeline over a plain number. `.value` unwraps it. */
+export interface Chain {
+  /** The current plain-number value. */
+  readonly value: number;
+  valueOf(): number;
+  done(): number;
+  add(y: number | string): Chain;
+  subtract(y: number | string): Chain;
+  multiply(factor: number): Chain;
+  divide(divisor: number): Chain;
+  fx(rate: number): Chain;
+  addPercent(p: number): Chain;
+  deductPercent(p: number): Chain;
+  addFees(p: number, fee: number): Chain;
+  deductFees(p: number, fee: number): Chain;
+  addMaxFee(p: number, fee: number): Chain;
+  deductMaxFee(p: number, fee: number): Chain;
+  grossFromNet(p: number): Chain;
+  netFromGross(p: number): Chain;
+  taxFromGross(p: number): Chain;
+  /** Terminal: allocate across ratios → number[]. */
+  allocate(ratios: number[]): number[];
+  /** Terminal: split into parts → number[]. */
+  split(...parts: Array<number | number[]>): number[];
+  /** Terminal: format as a currency string. */
+  format(currencyCode?: string, locale?: string, options?: Intl.NumberFormatOptions): string;
+}
+
+/**
+ * Start a fluent pipeline over `amount`. Convenience only: the whole library
+ * works on plain numbers without it, and you are never forced into a wrapper.
+ */
+export declare function chain(
+  amount: number | string,
+  decimals?: number,
+  rounding?: RoundingMode,
+): Chain;
+
 // ─── Core arithmetic ────────────────────────────────────────────────────────
 
 /**
- * Rounds `amount` up to `decimals` places (default 2).
- * Returns NaN for non-numeric inputs.
+ * Rounds `amount` to `decimals` places (default 2) using `rounding`
+ * (default: the module default, HALF_EVEN). Returns NaN for non-numeric inputs.
  */
 export declare function value(
   amount: number | string,
   decimals?: number,
+  rounding?: RoundingMode,
 ): number;
 
 /** Converts a monetary amount to integer cents. */
@@ -33,18 +103,19 @@ export declare function fx(
   amount: number | string,
   fxRate: number,
   decimals?: number,
+  rounding?: RoundingMode,
 ): number;
 
 /**
  * Adds monetary amounts safely. Accepts spread args or a single array.
- * Pass `{ decimals }` as the last argument for custom precision.
+ * Pass `{ decimals, rounding }` as the last argument for custom precision/mode.
  */
 export declare function sum(
   amounts: Array<number | string>,
-  options?: { decimals?: number },
+  options?: { decimals?: number; rounding?: RoundingMode },
 ): number;
 export declare function sum(
-  ...amounts: Array<number | string | { decimals?: number }>
+  ...amounts: Array<number | string | { decimals?: number; rounding?: RoundingMode }>
 ): number;
 
 /** Computes `p`% of `amount`. */
@@ -52,6 +123,7 @@ export declare function percent(
   amount: number | string,
   p: number,
   decimals?: number,
+  rounding?: RoundingMode,
 ): number;
 
 /** Adds two monetary amounts. */
@@ -59,6 +131,7 @@ export declare function add(
   x: number | string,
   y: number | string,
   decimals?: number,
+  rounding?: RoundingMode,
 ): number;
 
 /** Subtracts `y` from `x`. */
@@ -66,6 +139,7 @@ export declare function subtract(
   x: number | string,
   y: number | string,
   decimals?: number,
+  rounding?: RoundingMode,
 ): number;
 
 /** Multiplies `amount` by `factor`. */
@@ -73,6 +147,7 @@ export declare function multiply(
   amount: number | string,
   factor?: number,
   decimals?: number,
+  rounding?: RoundingMode,
 ): number;
 
 /**
@@ -83,16 +158,18 @@ export declare function divide(
   amount: number | string,
   divisor?: number,
   decimals?: number,
+  rounding?: RoundingMode,
 ): number;
 
 /**
- * Compares two monetary values.
+ * Compares two monetary values after rounding both to `decimals`.
  * @returns -1 if lh < rh, 0 if equal, 1 if lh > rh. NaN for invalid inputs.
  */
 export declare function compare(
   lh: number | string,
   rh: number | string,
   decimals?: number,
+  rounding?: RoundingMode,
 ): -1 | 0 | 1;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -247,6 +324,17 @@ export declare function deductFees(
   fee: number,
 ): number;
 
+// ─── Recipes — tax-inclusive / tax-exclusive (VAT) ──────────────────────────
+
+/** Gross (tax-inclusive) from a net (tax-exclusive) amount. `grossFromNet(100, 21) → 121` */
+export declare function grossFromNet(net: number | string, p: number): number;
+
+/** Net (tax-exclusive) from a gross (tax-inclusive) amount. `netFromGross(121, 21) → 100` */
+export declare function netFromGross(gross: number | string, p: number): number;
+
+/** The tax portion contained in a gross (tax-inclusive) amount. `taxFromGross(121, 21) → 21` */
+export declare function taxFromGross(gross: number | string, p: number): number;
+
 // ─── Recipes — deprecated (backward compatibility) ──────────────────────────
 
 /** @deprecated Use `maxFee` instead. */
@@ -310,6 +398,25 @@ export declare function split(
 ): number[];
 export declare function split(amount: number | string): number[];
 
+/**
+ * Allocate `amount` across arbitrary positive `ratios` (need not sum to 100 or 1).
+ * Exact: parts always sum back to the amount. The accounting allocation primitive.
+ * @throws {ArgumentError} if ratios is empty, has a negative entry, or sums to 0
+ */
+export declare function allocate(
+  amount: number | string,
+  ratios: number[],
+): number[];
+
+/** Alias of `sum`: total any number of amounts. */
+export declare function total(
+  amounts: Array<number | string>,
+  options?: { decimals?: number; rounding?: RoundingMode },
+): number;
+export declare function total(
+  ...amounts: Array<number | string | { decimals?: number; rounding?: RoundingMode }>
+): number;
+
 /** @deprecated Use `split` instead. */
 export declare function partition(
   amount: number | string,
@@ -344,6 +451,11 @@ export declare namespace recipes {
     fee: number,
   ): number;
   function deductFees(amount: number | string, p: number, fee: number): number;
+  function grossFromNet(net: number | string, p: number): number;
+  function netFromGross(gross: number | string, p: number): number;
+  function taxFromGross(gross: number | string, p: number): number;
+  // ─ Allocation ─
+  function allocate(amount: number | string, ratios: number[]): number[];
   // ─ Deprecated ─
   /** @deprecated */ function maxTax(
     amount: number | string,
@@ -410,6 +522,7 @@ declare const money: {
   cents2Amount: typeof cents2Amount;
   fx: typeof fx;
   sum: typeof sum;
+  total: typeof total;
   percent: typeof percent;
   add: typeof add;
   subtract: typeof subtract;
@@ -430,7 +543,11 @@ declare const money: {
   lessThanOrEqual: typeof lessThanOrEqual;
   format: typeof format;
   convert: typeof convert;
+  chain: typeof chain;
   ArgumentError: typeof ArgumentError;
+  RoundingMode: typeof RoundingMode;
+  setDefaultRounding: typeof setDefaultRounding;
+  getDefaultRounding: typeof getDefaultRounding;
   recipes: typeof recipes;
   // New names
   addPercent: typeof addPercent;
@@ -440,7 +557,11 @@ declare const money: {
   addFees: typeof addFees;
   deductMaxFee: typeof deductMaxFee;
   deductFees: typeof deductFees;
+  grossFromNet: typeof grossFromNet;
+  netFromGross: typeof netFromGross;
+  taxFromGross: typeof taxFromGross;
   split: typeof split;
+  allocate: typeof allocate;
   // Deprecated names
   maxTax: typeof maxTax;
   applyDiscount: typeof applyDiscount;

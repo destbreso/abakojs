@@ -3,6 +3,7 @@ const arithmetic = require("./lib/arithmetic");
 const { ArgumentError } = require("./lib/errors");
 const {
   partition,
+  allocate,
   applyDiscount,
   applyMaxTax,
   applySumTax,
@@ -17,11 +18,15 @@ const {
   addFees,
   deductMaxFee,
   deductFees,
+  grossFromNet,
+  netFromGross,
+  taxFromGross,
 } = require("./lib/recipes");
 const {
   format: formatCurrency,
   convert: convertCurrency,
 } = require("./lib/currency");
+const { chain } = require("./lib/chain");
 
 /**
  * Compute currency value from Number
@@ -37,7 +42,7 @@ const {
  * value('abcd') // NaN
  * value(null|undefined|any[]|object) // NaN
  */
-const value = (amount, decimals = 2) => arithmetic.value(amount, decimals);
+const value = (amount, decimals = 2, rounding) => arithmetic.value(amount, decimals, rounding);
 
 /**
  * Compute cents value from Number
@@ -92,8 +97,7 @@ const cents2Amount = (cents) => arithmetic.cents2Amount(cents);
  * fx(100, 0.0000155235) // 0.01
  * fx(100, 0.0000155235,4) // 0.0016
  */
-const fx = (amount, fxRate, decimals = 2) =>
-  arithmetic.fx(amount, fxRate, decimals);
+const fx = (amount, fxRate, decimals = 2, rounding) => arithmetic.fx(amount, fxRate, decimals, rounding);
 
 /**
  * Aggregate amounts
@@ -120,8 +124,7 @@ const sum = (...amounts) => arithmetic.sum(...amounts);
  * @returns {Number} Monetary value of amount*p/100
  *
  */
-const percent = (amount, p, decimals = 2) =>
-  arithmetic.percent(amount, p, decimals);
+const percent = (amount, p, decimals = 2, rounding) => arithmetic.percent(amount, p, decimals, rounding);
 
 /**
  * Difference of two amounts
@@ -137,7 +140,7 @@ const percent = (amount, p, decimals = 2) =>
  * subtract(23.42, 19.13) // 4.29
  */
 
-const subtract = (x, y, decimals = 2) => arithmetic.sum(x, -y, { decimals });
+const subtract = (x, y, decimals = 2, rounding) => arithmetic.subtract(x, y, decimals, rounding);
 
 /**
  * add two amounts
@@ -152,7 +155,7 @@ const subtract = (x, y, decimals = 2) => arithmetic.sum(x, -y, { decimals });
  * add(0.1, 0.2) // 0.3
  */
 
-const add = (x, y, decimals = 2) => arithmetic.sum(x, y, { decimals });
+const add = (x, y, decimals = 2, rounding) => arithmetic.add(x, y, decimals, rounding);
 
 /**
  * Multiply an amount by a factor
@@ -169,8 +172,7 @@ const add = (x, y, decimals = 2) => arithmetic.sum(x, y, { decimals });
  * fx(100, 0.0000155235,4) // 0.0016
  *
  */
-const multiply = (amount, factor = 1, decimals = 2) =>
-  arithmetic.multiply(amount, factor, decimals);
+const multiply = (amount, factor = 1, decimals = 2, rounding) => arithmetic.multiply(amount, factor, decimals, rounding);
 
 /**
  * Divide an amount by a divisor
@@ -192,8 +194,7 @@ const multiply = (amount, factor = 1, decimals = 2) =>
  * divide('abcd' , 2) // NaN
  * divide(null|undefined|any[]|object , 1) // NaN
  */
-const divide = (amount, divisor = 1, decimals = 2) =>
-  arithmetic.divide(amount, divisor, decimals);
+const divide = (amount, divisor = 1, decimals = 2, rounding) => arithmetic.divide(amount, divisor, decimals, rounding);
 
 /**
  * Compare two monetary amounts
@@ -209,7 +210,7 @@ const divide = (amount, divisor = 1, decimals = 2) =>
  * compare(1, 1)    // 0
  * compare(NaN, 1)  // NaN
  */
-const compare = (lh, rh, decimals = 2) => arithmetic.compare(lh, rh, decimals);
+const compare = (lh, rh, decimals = 2, rounding) => arithmetic.compare(lh, rh, decimals, rounding);
 
 /**
  * Check if a value is a valid numeric monetary amount
@@ -256,8 +257,7 @@ const isZero = (amount, decimals = 2) => arithmetic.isZero(amount, decimals);
  * isPositive(0)  // false
  * isPositive(-1) // false
  */
-const isPositive = (amount, decimals = 2) =>
-  arithmetic.isPositive(amount, decimals);
+const isPositive = (amount, decimals = 2) => arithmetic.isPositive(amount, decimals);
 
 /**
  * Check if monetary value is less than 0
@@ -271,8 +271,7 @@ const isPositive = (amount, decimals = 2) =>
  * isNegative(0)  // false
  * isNegative(1)  // false
  */
-const isNegative = (amount, decimals = 2) =>
-  arithmetic.isNegative(amount, decimals);
+const isNegative = (amount, decimals = 2) => arithmetic.isNegative(amount, decimals);
 
 /**
  * Returns the absolute (non-negative) monetary value
@@ -335,8 +334,7 @@ const equal = (lh, rh, decimals = 2) => arithmetic.equal(lh, rh, decimals);
  * @param {Number} [decimals] integer
  * @returns {boolean}
  */
-const greaterThan = (lh, rh, decimals = 2) =>
-  arithmetic.greaterThan(lh, rh, decimals);
+const greaterThan = (lh, rh, decimals = 2) => arithmetic.greaterThan(lh, rh, decimals);
 
 /**
  * Check if lh is greater than or equal to rh
@@ -346,8 +344,7 @@ const greaterThan = (lh, rh, decimals = 2) =>
  * @param {Number} [decimals] integer
  * @returns {boolean}
  */
-const greaterThanOrEqual = (lh, rh, decimals = 2) =>
-  arithmetic.greaterThanOrEqual(lh, rh, decimals);
+const greaterThanOrEqual = (lh, rh, decimals = 2) => arithmetic.greaterThanOrEqual(lh, rh, decimals);
 
 /**
  * Check if lh is strictly less than rh
@@ -357,8 +354,7 @@ const greaterThanOrEqual = (lh, rh, decimals = 2) =>
  * @param {Number} [decimals] integer
  * @returns {boolean}
  */
-const lessThan = (lh, rh, decimals = 2) =>
-  arithmetic.lessThan(lh, rh, decimals);
+const lessThan = (lh, rh, decimals = 2) => arithmetic.lessThan(lh, rh, decimals);
 
 /**
  * Check if lh is less than or equal to rh
@@ -368,8 +364,7 @@ const lessThan = (lh, rh, decimals = 2) =>
  * @param {Number} [decimals] integer
  * @returns {boolean}
  */
-const lessThanOrEqual = (lh, rh, decimals = 2) =>
-  arithmetic.lessThanOrEqual(lh, rh, decimals);
+const lessThanOrEqual = (lh, rh, decimals = 2) => arithmetic.lessThanOrEqual(lh, rh, decimals);
 
 /**
  * Format a monetary amount as a currency string.
@@ -388,8 +383,7 @@ const lessThanOrEqual = (lh, rh, decimals = 2) =>
  * format(1234.56, 'EUR', 'de-DE')  // '1.234,56 €'
  * format(0.12345678, 'BTC')        // '₿0.12345678'
  */
-const format = (amount, currencyCode, locale, options) =>
-  formatCurrency(amount, currencyCode, locale, options);
+const format = (amount, currencyCode, locale, options) => formatCurrency(amount, currencyCode, locale, options);
 
 /**
  * Convert an amount from one currency to another using a rates table.
@@ -410,8 +404,7 @@ const format = (amount, currencyCode, locale, options) =>
  * convert(100, 'EUR', 'USD', rates)       // 108.7
  * convert(100, 'USD', 'BTC', rates, 8)    // crypto-precision result
  */
-const convert = (amount, from, to, rates, decimals) =>
-  convertCurrency(amount, from, to, rates, decimals);
+const convert = (amount, from, to, rates, decimals) => convertCurrency(amount, from, to, rates, decimals);
 
 /**
  * @summary Recipes
@@ -442,6 +435,22 @@ const recipes = {
    * @deprecated Use `split` instead.
    */
   partition: (amount, ...parts) => partition(amount, ...parts),
+
+  /**
+   * Allocate an amount across arbitrary positive ratios (they need not sum to
+   * 100 or to 1). Exact: parts always sum back to the amount. The accounting
+   * "allocation" primitive.
+   *
+   * @param {(Number|String)} amount numeric value
+   * @param {Number[]} ratios array of non-negative ratios
+   * @returns {Number[]}
+   *
+   * @example
+   * allocate(1000, [7, 3])       // [700, 300]
+   * allocate(100, [1, 1, 1])     // [33.34, 33.33, 33.33]
+   * allocate(0.05, [1, 1])       // [0.03, 0.02]
+   */
+  allocate: (amount, ratios) => allocate(amount, ratios),
 
   // ─── New names (preferred) ──────────────────────────────────────────────
 
@@ -513,6 +522,35 @@ const recipes = {
    */
   deductFees: (amount, p, fee) => deductFees(amount, p, fee),
 
+  // ─── Tax-inclusive / tax-exclusive (VAT) ───────────────────────────────
+
+  /**
+   * Gross (tax-inclusive) from a net (tax-exclusive) amount.
+   * @param {(Number|String)} net numeric value
+   * @param {Number} p tax percent
+   * @returns {Number}
+   * @example grossFromNet(100, 21) // 121
+   */
+  grossFromNet: (net, p) => grossFromNet(net, p),
+
+  /**
+   * Net (tax-exclusive) from a gross (tax-inclusive) amount: gross / (1 + p/100).
+   * @param {(Number|String)} gross numeric value
+   * @param {Number} p tax percent
+   * @returns {Number}
+   * @example netFromGross(121, 21) // 100
+   */
+  netFromGross: (gross, p) => netFromGross(gross, p),
+
+  /**
+   * The tax portion contained in a gross (tax-inclusive) amount.
+   * @param {(Number|String)} gross numeric value
+   * @param {Number} p tax percent
+   * @returns {Number}
+   * @example taxFromGross(121, 21) // 21
+   */
+  taxFromGross: (gross, p) => taxFromGross(gross, p),
+
   // ─── Deprecated (kept for backward compatibility) ──────────────────────
 
   /**
@@ -551,6 +589,7 @@ module.exports = {
   cents2Amount,
   fx,
   sum,
+  total: sum,
   percent,
   add,
   subtract,
@@ -571,7 +610,12 @@ module.exports = {
   lessThanOrEqual,
   format,
   convert,
+  chain,
   ArgumentError,
+  // rounding configuration
+  RoundingMode: arithmetic.RoundingMode,
+  setDefaultRounding: arithmetic.setDefaultRounding,
+  getDefaultRounding: arithmetic.getDefaultRounding,
   recipes,
   ...recipes,
 };

@@ -1,6 +1,28 @@
 # Changelog
 
-## [2.3.2](https://github.com/destbreso/abakojs/compare/v2.3.1...v2.3.2) (2026-04-06)
+## [3.0.0](https://github.com/destbreso/abakojs/compare/v2.3.2...v3.0.0) (2026-07-23)
+
+Foundation rewrite: abakojs now computes on an exact integer (BigInt) decimal engine instead of floating point. The public API (function names and signatures) is unchanged, so most code keeps working, but rounding results differ (see BREAKING).
+
+### ⚠ BREAKING CHANGES
+
+* **Default rounding is now `HALF_EVEN` (banker's), not always-up (ceil).** v2 rounded every amount up: `value(0.101)` was `0.11`, `add(0.14, 0.28)` was `0.43`. v3 rounds half-even by default: `value(0.101)` is `0.10`, `add(0.14, 0.28)` is `0.42`. To reproduce v2 behavior: `setDefaultRounding(RoundingMode.CEIL)`.
+
+### Bug Fixes
+
+* **cents:** `cents()` now always returns an exact integer. In v2, `cents(1.10)` returned `110.00000000000001` and `cents2Amount(cents(1.10))` threw an `ArgumentError`.
+* **split:** `split()` (a.k.a. `partition`) now never loses or duplicates a cent. In v2, `split(0.29, 2)` returned `[0.14, 0.14]` (summing to `0.28`). Parts are distributed in exact integer cents.
+* **rounding:** all operations round correctly and without the systematic upward bias v2's ceil introduced.
+
+### Features
+
+* exact BigInt decimal engine (`lib/decimal.js`); no float in the computation path.
+* configurable rounding: `RoundingMode` (`HALF_EVEN`, `HALF_UP`, `HALF_DOWN`, `UP`, `DOWN`, `CEIL`, `FLOOR`), `setDefaultRounding`, `getDefaultRounding`, and an optional `rounding` argument on `value`/`add`/`subtract`/`multiply`/`divide`/`fx`/`percent`/`compare` (and via the options object on `sum`/`min`/`max`).
+* accounting recipes: `allocate` (distribute across arbitrary ratios, exact), `grossFromNet`/`netFromGross`/`taxFromGross` (VAT tax-inclusive/exclusive), and `total` as an alias of `sum`.
+* optional fluent `chain` pipeline (plain numbers in and out; you are never forced into a wrapper type).
+* property/invariant test suite cross-validated against decimal.js (thousands of random cases per operation, all rounding modes, split/allocate total-preservation, cents round-trip, zero-bias); benchmarks for speed (`bench/bench.js`), bundle size min+gzip (`bench/size.js`), and ergonomics (`bench/ergonomics.js`).
+
+### [2.3.2](https://github.com/destbreso/abakojs/compare/v2.3.1...v2.3.2) (2026-04-06)
 
 ## [2.3.1](https://github.com/destbreso/abakojs/compare/v2.3.0...v2.3.1) (2026-04-06)
 

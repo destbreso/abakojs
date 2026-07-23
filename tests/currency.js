@@ -43,14 +43,17 @@ const {
   recipes,
 } = require("../index");
 
+// normalize -0 -> 0 so tiny amounts that round to zero compare cleanly
+const nz = (v) => (v === 0 ? 0 : v);
 const testValue = (amount, expected, decimals = 2) => {
   it(`$${amount} with ${decimals} decimals is ${expected}`, () => {
-    expect(value(amount, decimals)).toEqual(expected);
+    expect(nz(value(amount, decimals))).toEqual(nz(expected));
   });
-  if (amount !== 0)
+  if (amount !== 0) {
     it(`$${-amount} with ${decimals} decimals is ${-expected}`, () => {
-      expect(value(-amount, decimals)).toEqual(-expected);
+      expect(nz(value(-amount, decimals))).toEqual(nz(-expected));
     });
+  }
 };
 
 describe("#money", () => {
@@ -62,7 +65,7 @@ describe("#money", () => {
       expect(value("a123b")).toEqual(NaN);
     });
     it("string (numeric) amount is valid", () => {
-      expect(value("50.001")).toEqual(50.01);
+      expect(value("50.001")).toEqual(50); // 50.001 -> 50.00 (half-even)
     });
     it("undefined amount is NaN", () => {
       expect(value(undefined)).toEqual(NaN);
@@ -94,54 +97,54 @@ describe("#money", () => {
     testValue(1, 1);
     testValue(0.99, 0.99);
     testValue(0.99, 0.99);
-    testValue(0.991, 1);
+    testValue(0.991, 0.99);
     testValue(0.999, 1);
-    testValue(0.0000001, 0.01);
-    testValue(0.0000001, 0.001, 3);
-    testValue(0.0000005, 0.01);
-    testValue(0.0000009, 0.00001, 5);
-    testValue(0.10010509, 1, 0);
-    testValue(0.10010509, 0.2, 1);
-    testValue(0.10010509, 0.11);
-    testValue(0.10010509, 0.101, 3);
-    testValue(0.10010509, 0.1002, 4);
+    testValue(0.0000001, 0);
+    testValue(0.0000001, 0, 3);
+    testValue(0.0000005, 0);
+    testValue(0.0000009, 0, 5);
+    testValue(0.10010509, 0, 0);
+    testValue(0.10010509, 0.1, 1);
+    testValue(0.10010509, 0.1);
+    testValue(0.10010509, 0.1, 3);
+    testValue(0.10010509, 0.1001, 4);
     testValue(0.10010509, 0.10011, 5);
-    testValue(0.10010509, 0.100106, 6);
+    testValue(0.10010509, 0.100105, 6);
     testValue(0.10010509, 0.1001051, 7);
     testValue(0.10010509, 0.10010509, 8);
     testValue(0.10010509, 0.10010509, 9);
-    testValue(0.011, 0.02);
+    testValue(0.011, 0.01);
     testValue(0.011, 0.011, 3);
     testValue(0.015, 0.02);
-    testValue(0.101, 0.11);
+    testValue(0.101, 0.1);
     testValue(0.101, 0.101, 3);
-    testValue(0.105, 0.11);
+    testValue(0.105, 0.1);
     testValue(0.105, 0.105, 3);
-    testValue(0.0101, 0.02);
-    testValue(0.0101, 0.011, 3);
+    testValue(0.0101, 0.01);
+    testValue(0.0101, 0.01, 3);
     testValue(0.0101, 0.0101, 4);
-    testValue(0.0105, 0.02);
-    testValue(0.0105, 0.011, 3);
+    testValue(0.0105, 0.01);
+    testValue(0.0105, 0.01, 3);
     testValue(0.0105, 0.0105, 4);
-    testValue(0.1001, 0.11);
-    testValue(0.1001, 0.101, 3);
+    testValue(0.1001, 0.1);
+    testValue(0.1001, 0.1, 3);
     testValue(0.1001, 0.1001, 4);
-    testValue(0.1005, 0.11);
-    testValue(0.1005, 0.101, 3);
+    testValue(0.1005, 0.1);
+    testValue(0.1005, 0.1, 3);
     testValue(0.1005, 0.1005, 4);
 
-    testValue(10.990001, 11, 2);
+    testValue(10.990001, 10.99, 2);
 
     // Decimal-heavy cases (where floating-point bugs surface)
-    testValue(1.005, 1.01);
+    testValue(1.005, 1);
     testValue(0.615, 0.62);
     testValue(0.075, 0.08);
     testValue(2.675, 2.68);
     testValue(1.255, 1.26);
-    testValue(0.545, 0.55);
+    testValue(0.545, 0.54);
     testValue(3.335, 3.34);
     testValue(4.995, 5);
-    testValue(0.0045, 0.01);
+    testValue(0.0045, 0);
     testValue(19.99, 19.99);
     testValue(49.995, 50);
 
@@ -149,12 +152,12 @@ describe("#money", () => {
     testValue(0.00000001, 0.00000001, 8); // 1 satoshi
     testValue(0.12345678, 0.12345678, 8);
     testValue(0.123456789, 0.12345679, 8); // 9th digit rounds up
-    testValue(0.123456784, 0.12345679, 8); // ceil behavior
+    testValue(0.123456784, 0.12345678, 8); // ceil behavior
     testValue(0.00000005, 0.00000005, 8);
     testValue(0.1, 0.1, 8);
     testValue(1.23456789, 1.23456789, 8);
     testValue(0.99999999, 0.99999999, 8);
-    testValue(0.000000001, 0.00000001, 8); // 9th digit rounds up
+    testValue(0.000000001, 0, 8); // 9th digit rounds up
     testValue(21000000.12345678, 21000000.12345678, 8); // BTC max supply scale
 
     // 4 decimals (some altcoins, commodities)
@@ -177,8 +180,8 @@ describe("#money", () => {
     it("3.12 is 312 cents", () => {
       expect(cents(3.12)).toEqual(312);
     });
-    it("0.11001 is 12 cents", () => {
-      expect(cents(0.11001)).toEqual(12);
+    it("0.11001 is 11 cents", () => {
+      expect(cents(0.11001)).toEqual(11);
     });
   });
   describe("#cents2Amount", () => {
@@ -231,11 +234,11 @@ describe("#money", () => {
     it("1 * 1 = 1", () => {
       expect(fx(1, 1)).toEqual(1);
     });
-    it("12.2506 * 1 = 12.26", () => {
-      expect(fx(12.2506, 1)).toEqual(12.26);
+    it("12.2506 * 1 = 12.25", () => {
+      expect(fx(12.2506, 1)).toEqual(12.25);
     });
-    it("1 * 12.2506 = 12.26", () => {
-      expect(fx(1, 12.2506)).toEqual(12.26);
+    it("1 * 12.2506 = 12.25", () => {
+      expect(fx(1, 12.2506)).toEqual(12.25);
     });
     it("5 * 3 = 15", () => {
       expect(fx(5, 3)).toEqual(15);
@@ -246,8 +249,8 @@ describe("#money", () => {
     it("100 * 0.01 = 1", () => {
       expect(fx(100, 0.01)).toEqual(1);
     });
-    it("100 * 0.0000155235 = 0.01", () => {
-      expect(fx("100", 0.0000155235)).toEqual(0.01);
+    it("100 * 0.0000155235 = 0", () => {
+      expect(fx("100", 0.0000155235)).toEqual(0);
     });
     it("100 * 0.0000155235 = 0.002 (3 decimals)", () => {
       expect(fx(100, 0.0000155235, 3)).toEqual(0.002);
@@ -288,8 +291,8 @@ describe("#money", () => {
     it("100% of 100 is 100", () => {
       expect(percent(100, 100)).toEqual(100);
     });
-    it("50.000001452% of 100 is 50.01", () => {
-      expect(percent(100, 50.000001452)).toEqual(50.01);
+    it("50.000001452% of 100 is 50", () => {
+      expect(percent(100, 50.000001452)).toEqual(50);
     });
     it("50.568% of 100 is 50.57", () => {
       expect(percent(100, 50.568)).toEqual(50.57);
@@ -297,8 +300,8 @@ describe("#money", () => {
     it("50% of 999.99 is 500", () => {
       expect(percent(999.99, 50)).toEqual(500);
     });
-    it("8.75% of 524.25 is 45.92", () => {
-      expect(percent(524.25, 8.75)).toEqual(45.88);
+    it("8.75% of 524.25 is 45.87", () => {
+      expect(percent(524.25, 8.75)).toEqual(45.87);
     });
     it("8.76% of 100 is 8.76", () => {
       expect(percent(100, 8.76)).toEqual(8.76);
@@ -306,8 +309,8 @@ describe("#money", () => {
     it("8.76% of 99.99 is 8.76", () => {
       expect(percent(99.99, 8.76)).toEqual(8.76);
     });
-    it("8.76% of 99 is 8.68", () => {
-      expect(percent(99, 8.76)).toEqual(8.68);
+    it("8.76% of 99 is 8.67", () => {
+      expect(percent(99, 8.76)).toEqual(8.67);
     });
     it("8.76% of 200 is 17.52", () => {
       expect(percent(200, 8.76)).toEqual(17.52);
@@ -323,8 +326,8 @@ describe("#money", () => {
     it("7.5% of 199.99 is 15", () => {
       expect(percent(199.99, 7.5)).toEqual(15);
     });
-    it("0.5% of 0.01 is 0.01", () => {
-      expect(percent(0.01, 0.5)).toEqual(0.01);
+    it("0.5% of 0.01 is 0", () => {
+      expect(percent(0.01, 0.5)).toEqual(0);
     });
 
     // Crypto precision percent (8 decimals)
@@ -345,8 +348,8 @@ describe("#money", () => {
     it("0.1 + 0.2 = 0.3", () => {
       expect(sum(0.1, 0.2)).toEqual(0.3);
     });
-    it("0 + 0.001 = 0.01", () => {
-      expect(sum(0.0, 0.001)).toEqual(0.01);
+    it("0 + 0.001 = 0", () => {
+      expect(sum(0.0, 0.001)).toEqual(0);
     });
     it("0 + 0.615 = 0.62", () => {
       expect(sum(0.0, 0.615)).toEqual(0.62);
@@ -428,8 +431,8 @@ describe("#money", () => {
     it("0.1 + 0.2 = 0.3", () => {
       expect(add(0.1, 0.2)).toEqual(0.3);
     });
-    it("0 + 0.001 = 0.01", () => {
-      expect(add(0.0, 0.001)).toEqual(0.01);
+    it("0 + 0.001 = 0", () => {
+      expect(add(0.0, 0.001)).toEqual(0);
     });
     it("0 + 0.615 = 0.62", () => {
       expect(add(0.0, 0.615)).toEqual(0.62);
@@ -466,8 +469,8 @@ describe("#money", () => {
     it("0.25 + 0.17 = 0.42", () => {
       expect(add(0.25, 0.17)).toEqual(0.42);
     });
-    it("0.14 + 0.28 = 0.43 (ceil rounds up float epsilon)", () => {
-      expect(add(0.14, 0.28)).toEqual(0.43);
+    it("0.14 + 0.28 = 0.42", () => {
+      expect(add(0.14, 0.28)).toEqual(0.42);
     });
 
     // Crypto precision add (8 decimals)
@@ -518,8 +521,8 @@ describe("#money", () => {
     it("0.75 - 0.25 = 0.5", () => {
       expect(subtract(0.75, 0.25)).toEqual(0.5);
     });
-    it("0.07 - 0.01 = 0.07 (ceil rounds up float epsilon)", () => {
-      expect(subtract(0.07, 0.01)).toEqual(0.07);
+    it("0.07 - 0.01 = 0.06", () => {
+      expect(subtract(0.07, 0.01)).toEqual(0.06);
     });
     it("33.33 - 33.33 = 0", () => {
       expect(subtract(33.33, 33.33)).toEqual(0);
@@ -575,8 +578,8 @@ describe("#money", () => {
     it("19.99 * 2 = 39.98", () => {
       expect(multiply(19.99, 2)).toEqual(39.98);
     });
-    it("0.01 * 0.01 = 0.01", () => {
-      expect(multiply(0.01, 0.01)).toEqual(0.01);
+    it("0.01 * 0.01 = 0", () => {
+      expect(multiply(0.01, 0.01)).toEqual(0);
     });
     it("9.99 * 1.1 = 10.99", () => {
       expect(multiply(9.99, 1.1)).toEqual(10.99);
@@ -589,8 +592,8 @@ describe("#money", () => {
     it("0.00000001 * 10 = 0.0000001 (8 decimals)", () => {
       expect(multiply(0.00000001, 10, 8)).toEqual(0.0000001);
     });
-    it("1.23456789 * 0.5 = 0.61728395 (8 decimals)", () => {
-      expect(multiply(1.23456789, 0.5, 8)).toEqual(0.61728395);
+    it("1.23456789 * 0.5 = 0.61728394 (8 decimals)", () => {
+      expect(multiply(1.23456789, 0.5, 8)).toEqual(0.61728394);
     });
     it("0.00000005 * 3 = 0.00000015 (8 decimals)", () => {
       expect(multiply(0.00000005, 3, 8)).toEqual(0.00000015);
@@ -600,11 +603,11 @@ describe("#money", () => {
     it("123.45 / 1 = 123.45 ", () => {
       expect(divide(123.45, 1)).toEqual(123.45);
     });
-    it("123.451 / 1 = 123.46 ", () => {
-      expect(divide(123.451, 1)).toEqual(123.46);
+    it("123.451 / 1 = 123.45 ", () => {
+      expect(divide(123.451, 1)).toEqual(123.45);
     });
-    it("123.45 / 2 = 61.73 ", () => {
-      expect(divide(123.45, 2)).toEqual(61.73);
+    it("123.45 / 2 = 61.72 ", () => {
+      expect(divide(123.45, 2)).toEqual(61.72);
     });
     it("123.451 / 2 = 61.73 ", () => {
       expect(divide(123.451, 2)).toEqual(61.73);
@@ -612,8 +615,8 @@ describe("#money", () => {
     it("0 / 2 = 0", () => {
       expect(divide(0, 2)).toEqual(0);
     });
-    it("10 / 3 = 3.34", () => {
-      expect(divide(10, 3)).toEqual(3.34);
+    it("10 / 3 = 3.33", () => {
+      expect(divide(10, 3)).toEqual(3.33);
     });
     it('"10" / 2 = 5', () => {
       expect(divide("10", 2)).toEqual(5);
@@ -626,11 +629,11 @@ describe("#money", () => {
     });
 
     // Decimal-heavy divide cases
-    it("1 / 3 = 0.34", () => {
-      expect(divide(1, 3)).toEqual(0.34);
+    it("1 / 3 = 0.33", () => {
+      expect(divide(1, 3)).toEqual(0.33);
     });
-    it("0.1 / 3 = 0.04", () => {
-      expect(divide(0.1, 3)).toEqual(0.04);
+    it("0.1 / 3 = 0.03", () => {
+      expect(divide(0.1, 3)).toEqual(0.03);
     });
     it("100 / 7 = 14.29", () => {
       expect(divide(100, 7)).toEqual(14.29);
@@ -638,13 +641,13 @@ describe("#money", () => {
     it("0.99 / 3 = 0.33", () => {
       expect(divide(0.99, 3)).toEqual(0.33);
     });
-    it("0.01 / 3 = 0.01", () => {
-      expect(divide(0.01, 3)).toEqual(0.01);
+    it("0.01 / 3 = 0", () => {
+      expect(divide(0.01, 3)).toEqual(0);
     });
 
     // Crypto precision divide (8 decimals)
-    it("1 / 3 = 0.33333334 (8 decimals)", () => {
-      expect(divide(1, 3, 8)).toEqual(0.33333334);
+    it("1 / 3 = 0.33333333 (8 decimals)", () => {
+      expect(divide(1, 3, 8)).toEqual(0.33333333);
     });
     it("0.12345678 / 2 = 0.06172839 (8 decimals)", () => {
       expect(divide(0.12345678, 2, 8)).toEqual(0.06172839);
@@ -652,8 +655,8 @@ describe("#money", () => {
     it("0.00000010 / 10 = 0.00000001 (8 decimals)", () => {
       expect(divide(0.0000001, 10, 8)).toEqual(0.00000001);
     });
-    it("1 / 7 = 0.14285715 (8 decimals)", () => {
-      expect(divide(1, 7, 8)).toEqual(0.14285715);
+    it("1 / 7 = 0.14285714 (8 decimals)", () => {
+      expect(divide(1, 7, 8)).toEqual(0.14285714);
     });
   });
 
@@ -876,6 +879,7 @@ describe("#money", () => {
         expect(recipes.split(100, 50, 50)).toEqual([50, 50]);
       });
       it("top-level split is the same as recipes.split", () => {
+        // eslint-disable-next-line global-require
         const { split } = require("../index.js");
         expect(split(1, 2)).toEqual(recipes.split(1, 2));
       });
@@ -895,11 +899,11 @@ describe("#money", () => {
       it("100 maxTax 10% or 20 is 20 ", () => {
         expect(maxTax(100, 10, 20)).toEqual(20);
       });
-      it("100 maxTax 10% or 20.0001 is 20.01 ", () => {
-        expect(maxTax(100, 10, 20.0001)).toEqual(20.01);
+      it("100 maxTax 10% or 20.0001 is 20 ", () => {
+        expect(maxTax(100, 10, 20.0001)).toEqual(20);
       });
-      it("100 maxTax 10% or 20.021 is 20.03 ", () => {
-        expect(maxTax(100, 10, 20.021)).toEqual(20.03);
+      it("100 maxTax 10% or 20.021 is 20.02 ", () => {
+        expect(maxTax(100, 10, 20.021)).toEqual(20.02);
       });
       it("100 maxTax 21% or 20 is 21 ", () => {
         expect(maxTax(100, 21, 20)).toEqual(21);
@@ -907,8 +911,8 @@ describe("#money", () => {
       it("100 maxTax 21.875% or 20 is 21 ", () => {
         expect(maxTax(100, 21.875, 20)).toEqual(21.88);
       });
-      it("524.25 maxTax 8.75% or 45 is 50 ", () => {
-        expect(maxTax(524.25, 8.75, 45)).toEqual(45.88);
+      it("524.25 maxTax 8.75% or 45 is 45.87 ", () => {
+        expect(maxTax(524.25, 8.75, 45)).toEqual(45.87);
       });
       it("524.25 maxTax 8.75% or 50 is 50 ", () => {
         expect(maxTax(524.25, 8.75, 50)).toEqual(50);
@@ -923,14 +927,14 @@ describe("#money", () => {
       });
 
       // Decimal-heavy discount
-      it("49.99 apply discount 15% is 42.5", () => {
-        expect(applyDiscount(49.99, 15)).toEqual(42.5);
+      it("49.99 apply discount 15% is 42.49", () => {
+        expect(applyDiscount(49.99, 15)).toEqual(42.49);
       });
       it("0.99 apply discount 50% is 0.5", () => {
         expect(applyDiscount(0.99, 50)).toEqual(0.5);
       });
-      it("19.99 apply discount 10% is 18", () => {
-        expect(applyDiscount(19.99, 10)).toEqual(18);
+      it("19.99 apply discount 10% is 17.99", () => {
+        expect(applyDiscount(19.99, 10)).toEqual(17.99);
       });
     });
     describe("#appyTax", () => {
@@ -942,8 +946,8 @@ describe("#money", () => {
       it("49.99 apply tax 21% is 60.49", () => {
         expect(applyTax(49.99, 21)).toEqual(60.49);
       });
-      it("0.01 apply tax 10% is 0.02", () => {
-        expect(applyTax(0.01, 10)).toEqual(0.02);
+      it("0.01 apply tax 10% is 0.01", () => {
+        expect(applyTax(0.01, 10)).toEqual(0.01);
       });
       it("19.99 apply tax 7.5% is 21.49", () => {
         expect(applyTax(19.99, 7.5)).toEqual(21.49);
@@ -999,8 +1003,8 @@ describe("#money", () => {
       it("0.005 vs 0.004 both round to 0.01, returns 0", () => {
         expect(compare(0.005, 0.004)).toEqual(0);
       });
-      it("0.015 vs 0.014 both round to 0.02, returns 0", () => {
-        expect(compare(0.015, 0.014)).toEqual(0);
+      it("0.015->0.02, 0.014->0.01, returns 1", () => {
+        expect(compare(0.015, 0.014)).toEqual(1);
       });
 
       // Crypto precision compare (8 decimals)
@@ -1038,14 +1042,14 @@ describe("#money", () => {
       });
 
       // Precision-varying: values that differ only beyond the active decimal place
-      it("9.994 vs 9.999 at 2dp: both round to 9.99 → 0", () => {
-        expect(compare(9.994, 9.999)).toEqual(0);
+      it("9.994->9.99, 9.999->10.00 at 2dp -> -1", () => {
+        expect(compare(9.994, 9.999)).toEqual(-1);
       });
       it("9.994 vs 9.999 at 3dp: 9.994 < 9.999 → -1", () => {
         expect(compare(9.994, 9.999, 3)).toEqual(-1);
       });
-      it("14.9949 vs 14.9951 at 2dp: both round to 14.99 → 0", () => {
-        expect(compare(14.9949, 14.9951)).toEqual(0);
+      it("14.9949->14.99, 14.9951->15.00 at 2dp -> -1", () => {
+        expect(compare(14.9949, 14.9951)).toEqual(-1);
       });
       it("14.9949 vs 14.9951 at 4dp: 14.9949 < 14.9951 → -1", () => {
         expect(compare(14.9949, 14.9951, 4)).toEqual(-1);
@@ -1104,19 +1108,19 @@ describe("#money", () => {
       it("-1 is not zero", () => {
         expect(isZero(-1)).toEqual(false);
       });
-      it("0.001 rounds to 0.01, not zero", () => {
-        expect(isZero(0.001)).toEqual(false);
+      it("0.001 rounds to 0.00, is zero", () => {
+        expect(isZero(0.001)).toEqual(true);
       });
-      it("0.0001 rounds to 0.01, not zero", () => {
-        expect(isZero(0.0001)).toEqual(false);
+      it("0.0001 rounds to 0.00, is zero", () => {
+        expect(isZero(0.0001)).toEqual(true);
       });
       it('"0" is zero', () => {
         expect(isZero("0")).toEqual(true);
       });
 
       // Crypto precision isZero (8 decimals)
-      it("0.000000001 is not zero at 8 decimals (rounds up)", () => {
-        expect(isZero(0.000000001, 8)).toEqual(false);
+      it("0.000000001 rounds to 0 at 8 decimals, is zero", () => {
+        expect(isZero(0.000000001, 8)).toEqual(true);
       });
       it("0 is zero at 8 decimals", () => {
         expect(isZero(0, 8)).toEqual(true);
@@ -1124,8 +1128,8 @@ describe("#money", () => {
       it("0.00000001 is not zero at 8 decimals", () => {
         expect(isZero(0.00000001, 8)).toEqual(false);
       });
-      it("0.004 is zero at 2 decimals (rounds to 0.01 → not zero)", () => {
-        expect(isZero(0.004)).toEqual(false);
+      it("0.004 rounds to 0.00 at 2 decimals, is zero", () => {
+        expect(isZero(0.004)).toEqual(true);
       });
     });
 
@@ -1133,8 +1137,8 @@ describe("#money", () => {
       it("1 is positive", () => {
         expect(isPositive(1)).toEqual(true);
       });
-      it("0.001 rounds to 0.01, is positive", () => {
-        expect(isPositive(0.001)).toEqual(true);
+      it("0.001 rounds to 0.00, not positive", () => {
+        expect(isPositive(0.001)).toEqual(false);
       });
       it("100 is positive", () => {
         expect(isPositive(100)).toEqual(true);
@@ -1165,8 +1169,8 @@ describe("#money", () => {
       it("-1 is negative", () => {
         expect(isNegative(-1)).toEqual(true);
       });
-      it("-0.001 rounds to -0.01, is negative", () => {
-        expect(isNegative(-0.001)).toEqual(true);
+      it("-0.001 rounds to 0.00, not negative", () => {
+        expect(isNegative(-0.001)).toEqual(false);
       });
       it("-100 is negative", () => {
         expect(isNegative(-100)).toEqual(true);
@@ -1248,8 +1252,8 @@ describe("#money", () => {
       it("49.99 addPercent 21% is 60.49", () => {
         expect(addPercent(49.99, 21)).toEqual(60.49);
       });
-      it("0.01 addPercent 10% is 0.02", () => {
-        expect(addPercent(0.01, 10)).toEqual(0.02);
+      it("0.01 addPercent 10% is 0.01", () => {
+        expect(addPercent(0.01, 10)).toEqual(0.01);
       });
       it("is an alias of applyTax", () => {
         expect(addPercent(19.99, 7.5)).toEqual(applyTax(19.99, 7.5));
@@ -1263,8 +1267,8 @@ describe("#money", () => {
       it("100 deductPercent 10% is 90", () => {
         expect(deductPercent(100, 10)).toEqual(90);
       });
-      it("49.99 deductPercent 15% is 42.5", () => {
-        expect(deductPercent(49.99, 15)).toEqual(42.5);
+      it("49.99 deductPercent 15% is 42.49", () => {
+        expect(deductPercent(49.99, 15)).toEqual(42.49);
       });
       it("0.99 deductPercent 50% is 0.5", () => {
         expect(deductPercent(0.99, 50)).toEqual(0.5);
@@ -1377,8 +1381,8 @@ describe("#money", () => {
       it("abs(0) is 0", () => {
         expect(abs(0)).toEqual(0);
       });
-      it("abs(-0.001) is 0.01", () => {
-        expect(abs(-0.001)).toEqual(0.01);
+      it("abs(-0.001) is 0", () => {
+        expect(abs(-0.001)).toEqual(0);
       });
       it("abs(NaN) is NaN", () => {
         expect(abs(NaN)).toEqual(NaN);
@@ -1391,8 +1395,8 @@ describe("#money", () => {
       });
 
       // Decimal-heavy abs
-      it("abs(-0.005) is 0.01", () => {
-        expect(abs(-0.005)).toEqual(0.01);
+      it("abs(-0.005) is 0", () => {
+        expect(abs(-0.005)).toEqual(0);
       });
       it("abs(-19.99) is 19.99", () => {
         expect(abs(-19.99)).toEqual(19.99);
@@ -1452,8 +1456,8 @@ describe("#money", () => {
           min([0.00000001, 0.00000002, 0.00000003], { decimals: 8 }),
         ).toEqual(0.00000001);
       });
-      it("min(0.12345678, 0.12345679) at 2 decimals both round to 0.13", () => {
-        expect(min(0.12345678, 0.12345679)).toEqual(0.13);
+      it("min(0.12345678, 0.12345679) at 2 decimals both round to 0.12", () => {
+        expect(min(0.12345678, 0.12345679)).toEqual(0.12);
       });
     });
 
@@ -1519,8 +1523,8 @@ describe("#money", () => {
       it("0.1 + 0.2 and 0.3 are equal", () => {
         expect(equal(0.3, 0.3)).toEqual(true);
       });
-      it("0.005 and 0.006 are equal at 2 decimals (both round to 0.01)", () => {
-        expect(equal(0.005, 0.006)).toEqual(true);
+      it("0.005->0.00, 0.006->0.01 at 2 decimals, not equal", () => {
+        expect(equal(0.005, 0.006)).toEqual(false);
       });
       it("19.99 and 19.98 are not equal", () => {
         expect(equal(19.99, 19.98)).toEqual(false);
@@ -1533,7 +1537,7 @@ describe("#money", () => {
       it("0.12345678 does not equal 0.12345679 (8 decimals)", () => {
         expect(equal(0.12345678, 0.12345679, 8)).toEqual(false);
       });
-      it("0.000000001 and 0.000000002 equal at 8 decimals (both round to 0.00000001)", () => {
+      it("0.000000001 and 0.000000002 both round to 0 at 8 decimals, equal", () => {
         expect(equal(0.000000001, 0.000000002, 8)).toEqual(true);
       });
 
@@ -1541,22 +1545,22 @@ describe("#money", () => {
       it("19.99 equals 19.99", () => {
         expect(equal(19.99, 19.99)).toEqual(true);
       });
-      it("49.981 equals 49.99 (49.981 ceilings to 49.99)", () => {
-        expect(equal(49.981, 49.99)).toEqual(true);
+      it("49.981 (->49.98) does not equal 49.99", () => {
+        expect(equal(49.981, 49.99)).toEqual(false);
       });
       it("19.99 does not equal 20.00", () => {
         expect(equal(19.99, 20.0)).toEqual(false);
       });
 
       // Precision-varying
-      it("49.994 equals 49.999 at 2dp: both ceiling to 50.00", () => {
-        expect(equal(49.994, 49.999)).toEqual(true);
+      it("49.994 (->49.99) vs 49.999 (->50.00) at 2dp, not equal", () => {
+        expect(equal(49.994, 49.999)).toEqual(false);
       });
       it("49.994 does not equal 49.999 at 3dp", () => {
         expect(equal(49.994, 49.999, 3)).toEqual(false);
       });
-      it("9.9949 equals 9.9951 at 2dp: both ceiling to 10.00", () => {
-        expect(equal(9.9949, 9.9951)).toEqual(true);
+      it("9.9949 (->9.99) vs 9.9951 (->10.00) at 2dp, not equal", () => {
+        expect(equal(9.9949, 9.9951)).toEqual(false);
       });
     });
 
@@ -1605,8 +1609,8 @@ describe("#money", () => {
       });
 
       // Precision-varying
-      it("9.999 > 9.994 at 2dp is false: both round to 9.99", () => {
-        expect(greaterThan(9.999, 9.994)).toEqual(false);
+      it("9.999 (->10.00) > 9.994 (->9.99) at 2dp is true", () => {
+        expect(greaterThan(9.999, 9.994)).toEqual(true);
       });
       it("9.999 > 9.994 at 3dp is true", () => {
         expect(greaterThan(9.999, 9.994, 3)).toEqual(true);
@@ -1650,8 +1654,8 @@ describe("#money", () => {
       });
 
       // Precision-varying
-      it("9.994 >= 9.999 at 2dp is true: both round to 9.99 → equal", () => {
-        expect(greaterThanOrEqual(9.994, 9.999)).toEqual(true);
+      it("9.994 (->9.99) >= 9.999 (->10.00) at 2dp is false", () => {
+        expect(greaterThanOrEqual(9.994, 9.999)).toEqual(false);
       });
       it("9.994 >= 9.999 at 3dp is false", () => {
         expect(greaterThanOrEqual(9.994, 9.999, 3)).toEqual(false);
@@ -1703,8 +1707,8 @@ describe("#money", () => {
       });
 
       // Precision-varying
-      it("9.994 < 9.999 at 2dp is false: both round to 9.99", () => {
-        expect(lessThan(9.994, 9.999)).toEqual(false);
+      it("9.994 (->9.99) < 9.999 (->10.00) at 2dp is true", () => {
+        expect(lessThan(9.994, 9.999)).toEqual(true);
       });
       it("9.994 < 9.999 at 3dp is true", () => {
         expect(lessThan(9.994, 9.999, 3)).toEqual(true);
@@ -1748,8 +1752,8 @@ describe("#money", () => {
       });
 
       // Precision-varying
-      it("9.999 <= 9.994 at 2dp is true: both round to 9.99 → equal", () => {
-        expect(lessThanOrEqual(9.999, 9.994)).toEqual(true);
+      it("9.999 (->10.00) <= 9.994 (->9.99) at 2dp is false", () => {
+        expect(lessThanOrEqual(9.999, 9.994)).toEqual(false);
       });
       it("9.999 <= 9.994 at 3dp is false: 9.999 > 9.994", () => {
         expect(lessThanOrEqual(9.999, 9.994, 3)).toEqual(false);
@@ -1853,8 +1857,8 @@ describe("#money", () => {
       it("100 USD → GBP = 79", () => {
         expect(convert(100, "USD", "GBP", rates)).toEqual(79);
       });
-      it("100 GBP → USD = 126.59", () => {
-        expect(convert(100, "GBP", "USD", rates)).toEqual(126.59);
+      it("100 GBP → USD = 126.58", () => {
+        expect(convert(100, "GBP", "USD", rates)).toEqual(126.58);
       });
       it("100 USD → JPY = 14950", () => {
         expect(convert(100, "USD", "JPY", rates)).toEqual(14950);
@@ -1877,7 +1881,7 @@ describe("#money", () => {
 
       // Decimal-heavy
       it("49.99 USD → EUR", () => {
-        expect(convert(49.99, "USD", "EUR", rates)).toEqual(46);
+        expect(convert(49.99, "USD", "EUR", rates)).toEqual(45.99);
       });
       it("0.01 USD → EUR", () => {
         expect(convert(0.01, "USD", "EUR", rates)).toEqual(0.01);
