@@ -1,13 +1,12 @@
 # abakojs
 
-> Tiny, zero-dependency, **exact** monetary arithmetic for JavaScript and TypeScript.
-> Plain numbers in, plain numbers out. Correct, configurable rounding. Batteries-included business recipes.
+Money arithmetic that is exact to the last cent, and still takes plain JavaScript numbers and gives plain numbers back.
 
 ---
 
-## The Problem
+## What this is
 
-JavaScript arithmetic is broken for money:
+JavaScript has one number type and it is binary floating point. Money is defined in decimal. Those two facts do not fit together, and the mismatch shows up on the first line you write:
 
 ```js
 // Addition
@@ -25,13 +24,19 @@ JavaScript arithmetic is broken for money:
 (1.005).toFixed(2)       // "1.00"  (should be "1.01" under half-up)
 ```
 
-This is not a bug: it is how IEEE 754 floating-point works. But when you are building an invoice, a checkout, or a crypto wallet, wrong numbers mean real money lost.
+None of that is a bug. It is IEEE 754 doing exactly what it says it does: `0.1` has no finite binary expansion, so the value you added was never `0.1` to begin with. On an invoice, a checkout, a payout run or a crypto wallet, that residue is real money, and it accumulates over a ledger.
 
----
+The family of tools that fixes this is **exact decimal arithmetic** (fixed-point arithmetic, in the older name), and in JavaScript it includes big.js, decimal.js, dinero.js and currency.js. abakojs belongs to that family. The shared idea is worth one paragraph, because the rest of this page reads easily once you have it.
 
-## The Solution
+Stop storing the amount as a float and store it as an integer coefficient plus a scale: `19.99` is the pair `(1999, 2)`, `0.00000001` is `(1, 8)`. Addition lines up the two scales and adds two integers. Multiplication multiplies the coefficients and adds the scales. Division is long division carried out to the number of places you asked for, keeping the remainder so the last digit can be decided rather than inherited. Nothing rounds in the middle: it rounds once, at the end, under a mode you chose.
 
-**abakojs** computes on an exact integer (BigInt) decimal engine, then hands you back a plain `number`. No wrapper objects, no `new Money()`, no `.toUnit()` ceremony.
+abakojs implements that with three commitments:
+
+1. **The engine is exact.** Every value is parsed into a BigInt-backed decimal and all arithmetic runs in integer space. The coefficient is a BigInt, so it does not overflow at any amount, and there is no float in the computation path.
+2. **The anti-drift boundary is parsing.** A number is read through `n.toString()`, which yields the shortest round-tripping decimal (`String(0.29) === "0.29"`, never `"0.2899999..."`), so what enters the engine is the number you meant. Strings are parsed at full precision. `0.1 + 0.2` done *inside* abakojs is exact; only pre-corrupted input (float math you did before calling) carries junk in.
+3. **Rounding is a decision, not a default you inherit.** Half-even (banker's) unless you say otherwise, per call or globally, across seven modes.
+
+What separates abakojs inside the family is the boundary. The others hand you a value object you must construct and unwrap: `currency(x).value`, `new Decimal(x).toNumber()`, `dinero({ amount, currency })` and then `toDecimal()`. abakojs takes a `number` or a `string` and returns a `number`, so it drops into code that already moves amounts around as numbers.
 
 ```js
 import { sum, multiply, percent, fx, value } from 'abakojs';
@@ -43,12 +48,6 @@ fx(49.99, 0.92)        // 45.99  (no conversion drift)
 value(10.2506)         // 10.25  (rounded correctly, half-even)
 ```
 
-Three things make it trustworthy:
-
-1. **Exact engine.** Every value is parsed into a BigInt-backed decimal and all arithmetic runs in integer space. There is no float in the computation path.
-2. **The anti-drift boundary is parsing.** A number is read through `n.toString()`, which yields the shortest round-tripping decimal (`String(0.29) === "0.29"`, never `"0.2899999..."`). Strings are parsed at full precision. So `0.1 + 0.2` done *inside* abakojs is exact; only pre-corrupted input (float math you did before calling) carries junk in.
-3. **Correct, configurable rounding.** The default is **half-even (banker's rounding)**, the unbiased standard for finance. You can switch modes globally or per call.
-
 All functions also accept **strings** and **mixed inputs**, whatever comes back from a form, an API, or a database:
 
 ```js
@@ -58,44 +57,9 @@ multiply('19.99', '3')         // 59.97
 compare('1.99', '2.00')        // -1
 ```
 
----
+Because the result comes back as a `number`, the output is exact while the amount fits a double at its minor-unit scale, which is far past any realistic ledger and is spelled out in [Precision and limits](#precision-and-limits).
 
-## Ergonomics
-
-abakojs aims to be the most ergonomic money library: the least code, the fewest concepts, no wrapper ceremony. Every other library forces you to wrap each value in an object (`currency(x)`, `new Decimal(x)`, `dinero({ amount, currency })`) and unwrap it again (`.value`, `.toNumber()`, `toDecimal()`). abakojs takes plain numbers and gives plain numbers back.
-
-The same real task, in each library (source characters, and how many wrapper constructions/unwraps you are forced to write, measured by `node bench/ergonomics.js`):
-
-**Allocate `$1,000,000.05` across owners `50/30/20`, no cent lost:**
-
-```js
-// abakojs — 40 chars, 0 wrappers
-allocate(1000000.05, [50, 30, 20]);                 // [500000.03, 300000.01, 200000.01]
-
-// dinero.js v2 — 123 chars, 2 wrappers (amounts must be pre-scaled to integer cents)
-const d = dinero({ amount: 100000005, currency: USD });
-dAllocate(d, [50, 30, 20]).map((p) => Number(toDecimal(p)));
-
-// currency.js — 419 chars: has no weighted allocation, you hand-roll largest-remainder
-```
-
-**Take a gross of `$121` (21% VAT) and get net + tax:**
-
-```js
-// abakojs — 57 chars, 0 wrappers
-const net = netFromGross(121, 21);   // 100
-const tax = taxFromGross(121, 21);   // 21
-
-// currency.js — 136 chars, 3 wrappers   ·   decimal.js — 194 chars, 4 wrappers
-```
-
-| Task                                   | abakojs | currency.js | decimal.js | dinero.js v2 |
-|----------------------------------------|:-------:|:-----------:|:----------:|:------------:|
-| Cart → coupon → VAT (chars / wrappers) | **117 / 1** | 141 / 3 | 189 / 3 | 345 / 3 (wrong result) |
-| Weighted allocation (chars / wrappers) | **40 / 0**  | 419 / 2 | —       | 123 / 2 |
-| Net + tax from gross (chars / wrappers)| **57 / 0**  | 136 / 3 | 194 / 4 | —       |
-
-For sequential pipelines there is also an optional fluent `chain` (still plain numbers in and out, see below), so you are never *forced* into a wrapper the way the alternatives require.
+The engine is checked against decimal.js as an independent oracle: 4,000 random decimal strings per operation for `value`, `add`, `subtract`, `multiply`, `divide` and `percent`, plus 800 more for each of the seven rounding modes, every one required to match exactly. Exhaustive sweeps then assert that `split` never loses a cent, that `cents()` round-trips, and that the default rounding carries no cumulative bias. 644 tests in total.
 
 ---
 
@@ -142,8 +106,8 @@ The default mode is **`HALF_EVEN`** (banker's rounding): halves go to the neares
 import { value, RoundingMode, setDefaultRounding } from 'abakojs';
 
 // Default: HALF_EVEN
-value(1.005)                         // 1     (0.005 → nearest even → 1.00)
-value(2.675)                         // 2.68  (0.675 → nearest even → 2.68)
+value(1.005)                         // 1     (tie; the digit kept is 0, already even)
+value(2.675)                         // 2.68  (tie; the digit kept is 7, so it goes to 8)
 
 // Per call
 value(1.005, 2, RoundingMode.HALF_UP)  // 1.01  (common retail rule)
@@ -167,6 +131,150 @@ Available modes:
 | `FLOOR`     | Toward -∞                                     |
 
 Every function that produces a rounded amount (`value`, `add`, `subtract`, `multiply`, `divide`, `fx`, `percent`, `compare`) accepts an optional trailing `rounding` argument. For the variadic functions (`sum`, `min`, `max`) pass it in the options object: `sum(a, b, { rounding: RoundingMode.HALF_UP })`.
+
+---
+
+## Where this earns its place
+
+The shape to look for is money that gets *computed on*, not just displayed: a value that passes through a discount, a tax, a fee, a division, and has to come out the other side agreeing with an invoice. Each case below has a worked example in [Common Use Cases](#common-use-cases).
+
+**Checkout math, where a discount, a tax and a rounding rule compose.** A line-item subtotal, then a 5% coupon, then 21% VAT is three operations, and the naive version rounds after each one, so the total quietly depends on the order you wrote them in. Every percentage recipe here computes `amount * (100 ± p) / 100` and rounds the result once, and `sum` aggregates the line items in one exact pass, so no rounded intermediate is ever fed forward.
+
+**Invoices and platform fees with a floor.** "2.9% plus $0.30" and "2.5% or a $4.99 minimum, whichever is larger" are the fee shapes every marketplace and payment integration ends up writing by hand. They are one call each: `addFees`, `addMaxFee`, and their deducting counterparts.
+
+**Anything that has to sum back to the total.** Splitting a bill three ways, allocating revenue across partners, apportioning a cost across cost centers. The failure is always the same one: a rounded share times N is not the total, so a cent goes missing or gets created. `split` and `allocate` distribute in exact integer minor units by largest remainder, so the parts always add back up. The test suite asserts that exhaustively rather than by example: every amount from `0.00` to `6.00` across 1 to 13 equal parts, and six different weight sets across every amount from `0.00` to `5.00`.
+
+**Tax-inclusive and tax-exclusive amounts.** VAT, GST, and any sales tax quoted gross. `grossFromNet`, `netFromGross` and `taxFromGross` speak the accounting vocabulary directly, and net plus tax returns the gross you started from.
+
+**Amounts that arrive as strings.** Form fields, JSON payloads, and `DECIMAL`/`NUMERIC` columns that the driver hands over as text. The usual first move, `Number(x)`, is where the precision is lost before any library gets a chance at it. Every function here accepts a string and parses it at full precision, so the value enters the arithmetic exactly as written, however many digits it has.
+
+**Scales other than two decimals.** `decimals` is a parameter on every operation: `8` for BTC or ETH, `6` for USDC, `0` for a whole-unit currency. The engine does not privilege cents, so a crypto ledger and a fiat ledger use the same functions.
+
+**Bundles where a dependency has to justify itself.** Zero runtime dependencies, ESM and CJS, 3.4 KB gzipped for the core and 5.1 KB for the full build with formatting, conversion and the chain. That is affordable in a Lambda, an edge function or a browser bundle where decimal.js costs 12.5 KB for a superset you are not using.
+
+**Code that hands money across boundaries that only speak numbers.** React props, a JSON response, a chart library, an ORM write. A value object has to be unwrapped at every one of those, and every unwrap is somewhere to forget. Plain numbers in and out means there is nothing to unwrap.
+
+---
+
+## Ergonomics
+
+abakojs aims to be the most ergonomic money library: the least code, the fewest concepts, no wrapper ceremony. Every other library forces you to wrap each value in an object (`currency(x)`, `new Decimal(x)`, `dinero({ amount, currency })`) and unwrap it again (`.value`, `.toNumber()`, `toDecimal()`). abakojs takes plain numbers and gives plain numbers back.
+
+The same real task, in each library (source characters, and how many wrapper constructions/unwraps you are forced to write, measured by `node bench/ergonomics.js`):
+
+**Allocate `$1,000,000.05` across owners `50/30/20`, no cent lost:**
+
+```js
+// abakojs: 40 chars, 0 wrappers
+allocate(1000000.05, [50, 30, 20]);                 // [500000.03, 300000.01, 200000.01]
+
+// dinero.js v2: 123 chars, 2 wrappers (amounts must be pre-scaled to integer cents)
+const d = dinero({ amount: 100000005, currency: USD });
+dAllocate(d, [50, 30, 20]).map((p) => Number(toDecimal(p)));
+
+// currency.js: 419 chars, it has no weighted allocation, so you hand-roll largest-remainder
+```
+
+**Take a gross of `$121` (21% VAT) and get net + tax:**
+
+```js
+// abakojs: 57 chars, 0 wrappers
+const net = netFromGross(121, 21);   // 100
+const tax = taxFromGross(121, 21);   // 21
+
+// currency.js: 136 chars, 3 wrappers   ·   decimal.js: 194 chars, 4 wrappers
+```
+
+| Task                                   | abakojs | currency.js | decimal.js | dinero.js v2 |
+|----------------------------------------|:-------:|:-----------:|:----------:|:------------:|
+| Cart → coupon → VAT (chars / wrappers) | **117 / 1** | 141 / 3 | 189 / 3 | 345 / 3 (wrong result) |
+| Weighted allocation (chars / wrappers) | **40 / 0**  | 419 / 2 | n/a     | 123 / 2 |
+| Net + tax from gross (chars / wrappers)| **57 / 0**  | 136 / 3 | 194 / 4 | n/a     |
+
+For sequential pipelines there is also an optional fluent `chain` (still plain numbers in and out, see below), so you are never *forced* into a wrapper the way the alternatives require.
+
+---
+
+## Benchmarks
+
+### Speed
+
+`node bench/bench.js` (Node 22, Apple M-series, 500k iterations each). Numbers are indicative and vary run to run.
+
+| Operation (ops/sec)     |    abakojs |  currency.js | decimal.js |    big.js | dinero.js v2 |
+|-------------------------|-----------:|-------------:|-----------:|----------:|-------------:|
+| `add(0.1, 0.2)`         | ~2,900,000 |   ~1,650,000 | ~1,450,000 | ~3,200,000 | ~3,900,000 ¹ |
+| `subtract(1.01, 0.99)`  | ~3,900,000 |   ~1,650,000 | ~1,600,000 |      n/a | ~5,150,000 ¹ |
+| `multiply(165, 1.40)`   | ~4,300,000 |   ~2,030,000 | ~2,610,000 | ~2,040,000 | ~6,350,000 ¹ |
+| `value()` rounding      | **~5,220,000** | ~4,630,000 | ~2,100,000 | ~4,250,000 |        n/a |
+| `split / allocate(1,3)` | **~1,450,000** |   ~590,000 |        n/a |      n/a | ~1,410,000 ¹ |
+| `sum([10 items])`       | **~600,000** |     ~160,000 |   ~360,000 |      n/a |        n/a |
+| `percent(524.25, 8.75)` | **~4,100,000** | ~1,070,000 | ~1,050,000 |      n/a |        n/a |
+
+> ¹ dinero.js v2 operates on integer cents you supply pre-scaled (`dinero({ amount: 10, currency: USD })`), which skips the number-to-decimal step. It is faster on raw pairwise arithmetic but requires wrapper objects and verbose setup for every value.
+
+**abakojs is faster than currency.js and decimal.js on every operation**, and it wins rounding, aggregation, and allocation outright (even against dinero). big.js and dinero edge it on raw pairwise add/multiply because they work on a bare number/integer with no money semantics; abakojs still leads on the operations real money code actually spends its time in.
+
+### Size (minified + gzipped)
+
+`node bench/size.js` bundles each library's full public API with esbuild and gzips it (the number that lands in your app).
+
+| Library          |   min | min+gzip | note |
+|------------------|------:|---------:|------|
+| currency.js      | 2.2 KB |  1.0 KB | float-based; no rounding modes, recipes, or exactness |
+| **abakojs (core)** | **8.9 KB** | **3.4 KB** | engine + arithmetic + recipes |
+| **abakojs (full)** | **14.4 KB** | **5.1 KB** | + formatting + conversion + chain |
+| dinero.js v2     | 18.8 KB |  5.2 KB | tree-shakeable; wrapper objects |
+| big.js           |  6.7 KB |  2.9 KB | a decimal type only (no money features) |
+| decimal.js       | 31.3 KB | 12.5 KB | arbitrary-precision decimal type |
+
+abakojs is not the single smallest file (currency.js is, at the cost of exactness and features), but it packs the most capability per kilobyte: an exact BigInt engine, seven rounding modes, the full recipe set, formatting and conversion, all in ~5 KB gzipped, smaller than dinero's full build and under half of decimal.js.
+
+### Feature comparison
+
+| Feature                                        |     abakojs      | currency.js | dinero.js v2 | decimal.js |
+|------------------------------------------------|:----------------:|:-----------:|:------------:|:----------:|
+| Zero runtime dependencies                      |        ✅         |      ✅      |      ✅       |     ✅      |
+| Exact (integer/BigInt) computation             |        ✅         |      ❌ (float) |   ✅       |     ✅      |
+| Plain-number API (no wrapper objects)          |        ✅         |      ❌      |      ❌       |     ❌      |
+| Optional fluent chain                          |        ✅         |      ✅      |      ❌       |     ❌      |
+| Configurable rounding modes                    |        ✅         |   partial   |      ✅       |     ✅      |
+| Unbiased default (half-even / banker's)        |        ✅         |      ❌      |      ✅       |     ❌      |
+| Aggregate `sum` / `total` of N amounts         |        ✅         |      ❌      |      ❌       |     ❌      |
+| Fee / discount / tax recipes                   |        ✅         |      ❌      |      ❌       |     ❌      |
+| Exact split + `allocate` by ratio              |        ✅         |   split only |     ✅       |     ❌      |
+| VAT: gross / net / tax                         |        ✅         |      ❌      |      ❌       |     ❌      |
+| FX conversion + currency formatting            |        ✅         |      ✅      |      ✅       |     ❌      |
+| Configurable precision (crypto, 8+ decimals)   |        ✅         |      ✅      |      ✅       |     ✅      |
+| Arbitrary precision beyond `number` range      |    strings only   |      ❌      |      ✅       |     ✅      |
+
+---
+
+## When not to use this
+
+Both ends, honestly, because a package that only names where it wins is advertising.
+
+**You need precision past what a `number` can carry.** The engine is exact at any size, but the result is handed back as a JS number, so the guarantee ends where the double's safe integer range does. If you work at that boundary, or in a domain where the value must never round-trip through a double at all, use decimal.js or big.js, which keep the value as an object from end to end, or dinero.js v2, which holds the integer minor units you supply. Passing strings in and out of abakojs keeps the *input* exact, but the return type is still a number.
+
+**You want the currency to be part of the type.** abakojs computes on bare numbers, and nothing in it stops you adding a dollar amount to a yen amount: the currency lives in your code, not in the value. If making that mistake impossible is the point, dinero.js v2 carries the currency and its exponent inside the object. That is precisely the guarantee this package does not offer.
+
+**You need math beyond arithmetic.** There is `add`, `subtract`, `multiply`, `divide`, `percent`, comparison, and the money recipes. There are no powers, roots, logarithms or trigonometry. Amortization schedules, compound interest over N periods, IRR and option pricing all need functions that are not here, and decimal.js has them at arbitrary precision.
+
+**Your amounts are already integer minor units and stay that way.** If the money arrives as integer cents, is stored as integer cents, and is only added and subtracted, plain integer arithmetic is already exact below 2⁵³ and a decimal engine buys you nothing. The one thing worth coming back for is division: splitting integer cents three ways still has to put the remainder somewhere, and that is what `allocate` does.
+
+**You are counting bytes and exactness is not the requirement.** currency.js is the smallest thing in this field, 1.0 KB gzipped against this package's 3.4 KB core, and for display-only work at two decimals on small amounts, scaling to an integer with floats mostly agrees with doing it exactly. "Mostly" is the entire distinction. If a discrepancy in the last cent is not a problem you have, the smaller file is a fair trade.
+
+**All you need is formatting.** `Intl.NumberFormat` ships in every runtime and formats currency for free. `format` here is a thin wrapper over it that adds crypto symbols and routes the amount through the rounding engine first. If you are not doing arithmetic, use the platform.
+
+| Your case                                                   | Reach for      |
+|-------------------------------------------------------------|----------------|
+| Currency-typed money objects, strict money algebra          | dinero.js v2   |
+| Amounts beyond the `number` safe range, arbitrary precision | decimal.js, big.js, dinero.js v2 |
+| Scientific decimals: powers, roots, logs                    | decimal.js     |
+| Display formatting only                                     | `Intl.NumberFormat` |
+| Smallest possible file, float-based is acceptable           | currency.js    |
+
+What is left, and what this package is for: decimal money math in ordinary application code, at the amounts real ledgers hold, where the rounding rule should be a decision rather than whatever the language defaults to, and where you would rather not construct and unwrap a value object at every boundary.
 
 ---
 
@@ -266,8 +374,9 @@ chain(1234.56).format('USD', 'en-US')                // terminal → '$1,234.56'
 import { format } from 'abakojs';
 
 format(1234.56, 'USD', 'en-US')   // '$1,234.56'
-format(1234.56, 'EUR', 'de-DE')   // '1.234,56 €'
+format(1234.56, 'USD', 'de-DE')   // '1.234,56 $'  (same amount, German locale)
 format(1234.56, 'GBP', 'en-GB')   // '£1,234.56'
+format(1234.56, 'JPY', 'ja-JP')   // '￥1,235'      (zero-decimal currency)
 format(-19.99, 'USD', 'en-US')    // '-$19.99'
 format(0.12345678, 'BTC')         // '₿0.12345678'
 ```
@@ -387,7 +496,7 @@ divide(49.99, 0)    // throws ArgumentError
 
 #### `percent(amount, p, decimals?, rounding?)`
 
-Computes `p`% of `amount`.
+Computes `p`% of `amount`. Throws `ArgumentError` for a negative `p`.
 
 ```js
 percent(249.90, 8.5)    // 21.24
@@ -436,7 +545,7 @@ Formats via `Intl.NumberFormat`. Handles ISO 4217 currencies plus BTC, ETH, SAT.
 
 #### `convert(amount, from, to, rates, decimals?)`
 
-Converts between currencies using a rates table mapping codes to a common base. Cross-rates are computed automatically. Throws `ArgumentError` if a code is missing or a rate is zero.
+Converts between currencies using a rates table mapping codes to a common base. Cross-rates are computed automatically, as `to / from` in double precision, and the resulting factor is then applied exactly. Throws `ArgumentError` if a code is missing from the table or the source rate is zero.
 
 ---
 
@@ -471,79 +580,12 @@ The vocabulary maps straight onto accounting practice: **allocation** (apportion
 
 abakojs computes exactly in BigInt, then returns a JS `number`. That output is exact as long as the amount fits in a double's safe integer range **at its minor-unit scale**:
 
-- At 2 decimals: exact up to about `$90,071,987,536,927` (2⁵³ cents).
-- At 8 decimals (crypto): exact up to about `90,071,987` units.
+- At 2 decimals: exact up to about `$90,071,992,547,409` (2⁵³ cents).
+- At 8 decimals (crypto): exact up to about `90,071,992` units.
 
 These ceilings are far beyond realistic transaction and ledger values. If you need to move amounts larger than that at high precision without any `number` round-trip, keep them as strings and pass strings in and out. Everything that a plain `number` can represent, abakojs computes exactly.
 
-There is deliberately **no float fast-path**: a library whose whole purpose is float-avoidance should not sneak floats back into the hot path. The BigInt engine is fast enough (see below).
-
----
-
-## Benchmarks
-
-### Speed
-
-`node bench/bench.js` (Node 22, Apple M-series, 500k iterations each). Numbers are indicative and vary run to run.
-
-| Operation (ops/sec)     |    abakojs |  currency.js | decimal.js |    big.js | dinero.js v2 |
-|-------------------------|-----------:|-------------:|-----------:|----------:|-------------:|
-| `add(0.1, 0.2)`         | ~2,900,000 |   ~1,650,000 | ~1,450,000 | ~3,200,000 | ~3,900,000 ¹ |
-| `subtract(1.01, 0.99)`  | ~3,900,000 |   ~1,650,000 | ~1,600,000 |        — | ~5,150,000 ¹ |
-| `multiply(165, 1.40)`   | ~4,300,000 |   ~2,030,000 | ~2,610,000 | ~2,040,000 | ~6,350,000 ¹ |
-| `value()` rounding      | **~5,220,000** | ~4,630,000 | ~2,100,000 | ~4,250,000 |          — |
-| `split / allocate(1,3)` | **~1,450,000** |   ~590,000 |          — |        — | ~1,410,000 ¹ |
-| `sum([10 items])`       | **~600,000** |     ~160,000 |   ~360,000 |        — |          — |
-| `percent(524.25, 8.75)` | **~4,100,000** | ~1,070,000 | ~1,050,000 |        — |          — |
-
-> ¹ dinero.js v2 operates on integer cents you supply pre-scaled (`dinero({ amount: 10, currency: USD })`), which skips the number-to-decimal step. It is faster on raw pairwise arithmetic but requires wrapper objects and verbose setup for every value.
-
-**abakojs is faster than currency.js and decimal.js on every operation**, and it wins rounding, aggregation, and allocation outright (even against dinero). big.js and dinero edge it on raw pairwise add/multiply because they work on a bare number/integer with no money semantics; abakojs still leads on the operations real money code actually spends its time in.
-
-### Size (minified + gzipped)
-
-`node bench/size.js` bundles each library's full public API with esbuild and gzips it (the number that lands in your app).
-
-| Library          |   min | min+gzip | note |
-|------------------|------:|---------:|------|
-| currency.js      | 2.2 KB |  1.0 KB | float-based; no rounding modes, recipes, or exactness |
-| **abakojs (core)** | **8.9 KB** | **3.4 KB** | engine + arithmetic + recipes |
-| **abakojs (full)** | **14.4 KB** | **5.1 KB** | + formatting + conversion + chain |
-| dinero.js v2     | 18.8 KB |  5.2 KB | tree-shakeable; wrapper objects |
-| big.js           |  6.7 KB |  2.9 KB | a decimal type only (no money features) |
-| decimal.js       | 31.3 KB | 12.5 KB | arbitrary-precision decimal type |
-
-abakojs is not the single smallest file (currency.js is, at the cost of exactness and features), but it packs the most capability per kilobyte: an exact BigInt engine, seven rounding modes, the full recipe set, formatting and conversion, all in ~5 KB gzipped, smaller than dinero's full build and under half of decimal.js.
-
-### Feature comparison
-
-| Feature                                        |     abakojs      | currency.js | dinero.js v2 | decimal.js |
-|------------------------------------------------|:----------------:|:-----------:|:------------:|:----------:|
-| Zero runtime dependencies                      |        ✅         |      ✅      |      ✅       |     ✅      |
-| Exact (integer/BigInt) computation             |        ✅         |      ❌ (float) |   ✅       |     ✅      |
-| Plain-number API (no wrapper objects)          |        ✅         |      ❌      |      ❌       |     ❌      |
-| Optional fluent chain                          |        ✅         |      ✅      |      ❌       |     ❌      |
-| Configurable rounding modes                    |        ✅         |   partial   |      ✅       |     ✅      |
-| Unbiased default (half-even / banker's)        |        ✅         |      ❌      |      ✅       |     ❌      |
-| Aggregate `sum` / `total` of N amounts         |        ✅         |      ❌      |      ❌       |     ❌      |
-| Fee / discount / tax recipes                   |        ✅         |      ❌      |      ❌       |     ❌      |
-| Exact split + `allocate` by ratio              |        ✅         |   split only |     ✅       |     ❌      |
-| VAT: gross / net / tax                         |        ✅         |      ❌      |      ❌       |     ❌      |
-| FX conversion + currency formatting            |        ✅         |      ✅      |      ✅       |     ❌      |
-| Configurable precision (crypto, 8+ decimals)   |        ✅         |      ✅      |      ✅       |     ✅      |
-| Arbitrary precision beyond `number` range      |    strings only   |      ❌      |      ✅       |     ✅      |
-
-### When to use what
-
-| Use case                                            | Recommended   |
-|-----------------------------------------------------|---------------|
-| Money math with plain numbers, zero boilerplate     | ✅ **abakojs** |
-| Accounting recipes (allocate, VAT, fees, discounts) | ✅ **abakojs** |
-| Crypto arithmetic (BTC, ETH, configurable decimals) | ✅ **abakojs** |
-| Currency formatting and multi-currency conversion   | ✅ **abakojs** |
-| Currency-typed money objects, strict money algebra  | dinero.js v2  |
-| Amounts beyond the `number` safe range, arbitrary precision | decimal.js / dinero.js v2 |
-| Scientific / arbitrary-precision decimals            | decimal.js    |
+There is deliberately **no float fast-path**: a library whose whole purpose is float-avoidance should not sneak floats back into the hot path. The BigInt engine is fast enough (see the benchmarks above).
 
 ---
 
