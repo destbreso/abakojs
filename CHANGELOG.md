@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.0.1
+
+No change to the engine. Four claims in the README were wrong, and one of them was wrong at the exact number it printed.
+
+**The precision ceiling.** The README said 2 decimals were exact up to about `$90,071,992,547,409`, "2^53 cents". Adding a cent to that exact amount returns `...409.02`. The claim read "2^53 units" as the limit, which would be right if the units were the doubles; the amount is. The real limit is the binade where the gap between neighbouring doubles exceeds one unit of the last place: **below 2^46 = `$70,368,744,177,664`** at 2 decimals, and **below 2^26 = `67,108,864` units** at 8. Both are measured by `npm run precision` and pinned by `tests/precision.test.js`, two-sided: exact just under, demonstrably wrong at the boundary.
+
+Why the suite could not see it is worth recording. The decimal.js oracle generated at most six integer digits, so it never visited a magnitude where the question exists, and an oracle that cannot reach a claim cannot check it. It now also sweeps the decade below the documented ceiling.
+
+**The string escape hatch does not exist.** The README told anyone above the ceiling to "keep them as strings and pass strings in and out", and the feature table offered "strings only" for arbitrary precision. Every function returns a `number` and there is no string-returning path. Both claims are gone, and that reader is now routed to `decimal.js` or `big.js`, which return their own type.
+
+**"Faster on every operation" was disproven by this repo's own benchmark.** `bench/bench.js` measures a `format` case the table omitted, where abakojs is about 20x slower than currency.js. The row is in the table now, with the reason: `format` delegates to `Intl.NumberFormat` and lands within 3% of it, while currency.js builds the string by hand and therefore does not do what `Intl` does.
+
+**A 1.4% margin is not a win.** Allocation against dinero was 1,456,873 to 1,436,920 ops/sec from a single run, and the README called it won outright. It now says the harness cannot separate them.
+
+Also: the ergonomics table branded dinero.js v2's cart result as wrong. It was not. The snippet never called `transformScale` before reading the value, so the wrong answer was mine. Fixed, and dinero now shows correct at 368 characters.
+
 ## [3.0.0](https://github.com/destbreso/abakojs/compare/v2.3.2...v3.0.0) (2026-07-23)
 
 Foundation rewrite: abakojs now computes on an exact integer (BigInt) decimal engine instead of floating point. The public API (function names and signatures) is unchanged, so most code keeps working, but rounding results differ (see BREAKING).

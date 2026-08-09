@@ -29,7 +29,7 @@ const ownSize =
   dirSize(path.join(root, "lib"));
 
 const entries = [
-  ["money-math-recipes", ownSize],
+  ["abakojs", ownSize],
   ["currency.js", dirSize(path.join(nm, "currency.js"))],
   ["dinero.js", dirSize(path.join(nm, "dinero.js"))],
   ["decimal.js", dirSize(path.join(nm, "decimal.js"))],

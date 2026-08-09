@@ -187,7 +187,7 @@ const tax = taxFromGross(121, 21);   // 21
 
 | Task                                   | abakojs | currency.js | decimal.js | dinero.js v2 |
 |----------------------------------------|:-------:|:-----------:|:----------:|:------------:|
-| Cart → coupon → VAT (chars / wrappers) | **117 / 1** | 141 / 3 | 189 / 3 | 345 / 3 (wrong result) |
+| Cart → coupon → VAT (chars / wrappers) | **117 / 1** | 141 / 3 | 189 / 3 | 368 / 3 |
 | Weighted allocation (chars / wrappers) | **40 / 0**  | 419 / 2 | n/a     | 123 / 2 |
 | Net + tax from gross (chars / wrappers)| **57 / 0**  | 136 / 3 | 194 / 4 | n/a     |
 
@@ -210,10 +210,13 @@ For sequential pipelines there is also an optional fluent `chain` (still plain n
 | `split / allocate(1,3)` | **~1,450,000** |   ~590,000 |        n/a |      n/a | ~1,410,000 ¹ |
 | `sum([10 items])`       | **~600,000** |     ~160,000 |   ~360,000 |      n/a |        n/a |
 | `percent(524.25, 8.75)` | **~4,100,000** | ~1,070,000 | ~1,050,000 |      n/a |        n/a |
+| `format(1234.56, 'USD')` |    ~62,000 | **~1,220,000** |        n/a |      n/a |        n/a ² |
 
 > ¹ dinero.js v2 operates on integer cents you supply pre-scaled (`dinero({ amount: 10, currency: USD })`), which skips the number-to-decimal step. It is faster on raw pairwise arithmetic but requires wrapper objects and verbose setup for every value.
+>
+> ² `format` is the one row abakojs loses badly, by about 20x, and it is not an arithmetic result. `format` delegates to `Intl.NumberFormat`, which measures at ~63,000 ops/sec on its own: abakojs is within 3% of the platform primitive it calls. currency.js is fast here because it builds the string by hand and therefore does not do what `Intl` does. If you are formatting in a hot loop, hoist an `Intl.NumberFormat` yourself and format from it, whichever library you use.
 
-**abakojs is faster than currency.js and decimal.js on every operation**, and it wins rounding, aggregation, and allocation outright (even against dinero). big.js and dinero edge it on raw pairwise add/multiply because they work on a bare number/integer with no money semantics; abakojs still leads on the operations real money code actually spends its time in.
+**abakojs is faster than currency.js and decimal.js on every arithmetic operation measured here**, and it leads on rounding, aggregation and allocation. big.js and dinero edge it on raw pairwise add and multiply because they work on a bare number or a pre-scaled integer with no money semantics. Against dinero on allocation the two are 1,456,873 against 1,436,920 ops/sec, a 1.4% gap from a single run: that is not a win, it is a tie this harness cannot separate, and calling it either way would need separate processes and a paired sign test rather than one number.
 
 ### Size (minified + gzipped)
 
@@ -246,7 +249,7 @@ abakojs is not the single smallest file (currency.js is, at the cost of exactnes
 | VAT: gross / net / tax                         |        ✅         |      ❌      |      ❌       |     ❌      |
 | FX conversion + currency formatting            |        ✅         |      ✅      |      ✅       |     ❌      |
 | Configurable precision (crypto, 8+ decimals)   |        ✅         |      ✅      |      ✅       |     ✅      |
-| Arbitrary precision beyond `number` range      |    strings only   |      ❌      |      ✅       |     ✅      |
+| Arbitrary precision beyond `number` range      |        ❌         |      ❌      |      ✅       |     ✅      |
 
 ---
 
@@ -578,12 +581,16 @@ The vocabulary maps straight onto accounting practice: **allocation** (apportion
 
 ## Precision and limits
 
-abakojs computes exactly in BigInt, then returns a JS `number`. That output is exact as long as the amount fits in a double's safe integer range **at its minor-unit scale**:
+abakojs computes exactly in BigInt, then returns a JS `number`. The arithmetic is always exact; the ceiling belongs to the return type. A double can only hand back an amount it can represent, and the spacing between neighbouring doubles grows with magnitude, so the limit sits where that spacing exceeds one unit of the last place:
 
-- At 2 decimals: exact up to about `$90,071,992,547,409` (2⁵³ cents).
-- At 8 decimals (crypto): exact up to about `90,071,992` units.
+- At 2 decimals: exact below `$70,368,744,177,664` (2⁴⁶), roughly $70 trillion.
+- At 8 decimals: exact below `67,108,864` units (2²⁶).
 
-These ceilings are far beyond realistic transaction and ledger values. If you need to move amounts larger than that at high precision without any `number` round-trip, keep them as strings and pass strings in and out. Everything that a plain `number` can represent, abakojs computes exactly.
+Both are measured rather than reasoned about. `npm run precision` sweeps each scale against a BigInt oracle and prints where the first failure lands, and `test/precision.test.js` pins the ceilings so neither can move without a test going red.
+
+The rule behind those two numbers is worth stating, because the intuitive version of it is wrong. The limit is **not** where the count of minor units reaches 2⁵³. That would be the answer if the units were the doubles, and they are not: the amount is. Inside the binade `[2ᵏ, 2ᵏ⁺¹)` the gap between neighbouring doubles is `2ᵏ⁻⁵²`, so the last magnitude that still resolves one unit of the last place is the largest `k` with `2ᵏ⁻⁵² ≤ 10⁻ᵈ`. Above it the nearest representable neighbour is more than a unit away, and no library returning a `number` can give the right answer, because the right answer is not in the type. At `$92,204,735,266,816`, adding one cent lands on `.02`.
+
+"Exact" here means the returned double reads back as the correct amount at `d` decimals. Beyond these ceilings, reach for a library that returns its own decimal type instead of a `number`: `decimal.js` and `big.js` both do, and [When not to use this](#when-not-to-use-this) says when that is the right call.
 
 There is deliberately **no float fast-path**: a library whose whole purpose is float-avoidance should not sneak floats back into the hot path. The BigInt engine is fast enough (see the benchmarks above).
 

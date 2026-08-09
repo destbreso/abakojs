@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Benchmark: money-math-recipes vs currency.js vs dinero.js v2 vs decimal.js
+ * Benchmark: abakojs vs currency.js vs dinero.js v2 vs decimal.js
  *
  * Run:  node bench/bench.js
  *
@@ -81,7 +81,7 @@ function printTable(title, results) {
 // ─── ADDITION ───────────────────────────────────────────────────────────────
 
 const addResults = [
-  bench("money-math-recipes", () => add(0.1, 0.2)),
+  bench("abakojs", () => add(0.1, 0.2)),
   bench("currency.js", () => currency(0.1).add(0.2).value),
   bench("decimal.js", () => new Decimal("0.1").plus("0.2").toDecimalPlaces(2).toNumber()),
   bench("big.js", () => new Big("0.1").plus("0.2").round(2).toNumber()),
@@ -98,7 +98,7 @@ printTable("ADDITION  add(0.1, 0.2) → 0.3", addResults);
 // ─── SUBTRACTION ────────────────────────────────────────────────────────────
 
 const subtractResults = [
-  bench("money-math-recipes", () => subtract(1.01, 0.99)),
+  bench("abakojs", () => subtract(1.01, 0.99)),
   bench("currency.js", () => currency(1.01).subtract(0.99).value),
   bench("decimal.js", () => new Decimal("1.01").minus("0.99").toDecimalPlaces(2).toNumber()),
   bench("dinero.js v2", () => {
@@ -114,7 +114,7 @@ printTable("SUBTRACTION  subtract(1.01, 0.99) → 0.02", subtractResults);
 // ─── MULTIPLICATION ─────────────────────────────────────────────────────────
 
 const multiplyResults = [
-  bench("money-math-recipes", () => multiply(165, 1.4)),
+  bench("abakojs", () => multiply(165, 1.4)),
   bench("currency.js", () => currency(165).multiply(1.4).value),
   bench("decimal.js", () => new Decimal("165").mul("1.40").toDecimalPlaces(2).toNumber()),
   bench("big.js", () => new Big("165").times("1.40").round(2).toNumber()),
@@ -130,7 +130,7 @@ printTable("MULTIPLICATION  multiply(165, 1.40) → 231", multiplyResults);
 // ─── ROUNDING / VALUE ────────────────────────────────────────────────────────
 
 const roundResults = [
-  bench("money-math-recipes  value()", () => value(10.2506)),
+  bench("abakojs  value()", () => value(10.2506)),
   bench("currency.js", () => currency(10.2506).value),
   bench("decimal.js  toDecimalPlaces", () => new Decimal("10.2506").toDecimalPlaces(2).toNumber()),
   bench("big.js  round(2)", () => new Big("10.2506").round(2).toNumber()),
@@ -142,7 +142,7 @@ printTable("ROUNDING  value(10.2506) → 10.26", roundResults);
 // ─── PARTITION ──────────────────────────────────────────────────────────────
 
 const partitionResults = [
-  bench("money-math-recipes  partition", () => recipes.partition(1, 3)),
+  bench("abakojs  partition", () => recipes.partition(1, 3)),
   bench("currency.js  distribute", () => currency(1)
     .distribute(3)
     .map((c) => c.value)),
@@ -167,7 +167,7 @@ printTable("PARTITION  partition(1, 3) → [0.34, 0.33, 0.33]", partitionResults
 const amounts = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
 
 const sumResults = [
-  bench("money-math-recipes  sum()", () => sum(amounts)),
+  bench("abakojs  sum()", () => sum(amounts)),
   bench(
     "currency.js reduce",
     () => amounts.reduce((acc, n) => currency(acc).add(n), currency(0)).value,
@@ -184,7 +184,7 @@ printTable("AGGREGATE  sum([0.1…1.0]) — 10 items", sumResults);
 // ─── PERCENT ─────────────────────────────────────────────────────────────────
 
 const percentResults = [
-  bench("money-math-recipes  percent()", () => percent(524.25, 8.75)),
+  bench("abakojs  percent()", () => percent(524.25, 8.75)),
   bench("currency.js", () => currency(524.25).multiply(8.75).divide(100).value),
   bench("decimal.js", () => new Decimal("524.25").mul("8.75").div(100).toDecimalPlaces(2)
     .toNumber()),
@@ -196,7 +196,7 @@ printTable("PERCENT  percent(524.25, 8.75) → 45.88", percentResults);
 // ─── CRYPTO PRECISION (8 DECIMALS) ──────────────────────────────────────────
 
 const cryptoAddResults = [
-  bench("money-math-recipes  add(,,8)", () => sum(0.12345678, 0.00000001, { decimals: 8 })),
+  bench("abakojs  add(,,8)", () => sum(0.12345678, 0.00000001, { decimals: 8 })),
   bench(
     "currency.js  precision:8",
     () => currency(0.12345678, { precision: 8 }).add(0.00000001).value,
@@ -216,7 +216,7 @@ printTable(
 );
 
 const cryptoCompareResults = [
-  bench("money-math-recipes  compare(,,8)", () => compare(0.12345678, 0.12345679, 8)),
+  bench("abakojs  compare(,,8)", () => compare(0.12345678, 0.12345679, 8)),
   bench("currency.js  precision:8", () => {
     const a = currency(0.12345678, { precision: 8 });
     const b = currency(0.12345679, { precision: 8 });
@@ -235,7 +235,7 @@ printTable(
 const { format, convert } = require("../index");
 
 const formatResults = [
-  bench("money-math-recipes  format()", () => format(1234.56, "USD", "en-US")),
+  bench("abakojs  format()", () => format(1234.56, "USD", "en-US")),
   bench("currency.js  format()", () => currency(1234.56, { symbol: "$" }).format()),
   bench("Intl.NumberFormat (raw)", () => new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -250,7 +250,7 @@ printTable("FORMAT  format(1234.56, 'USD') → '$1,234.56'", formatResults);
 const fxRates = { USD: 1, EUR: 0.92, GBP: 0.79 };
 
 const convertResults = [
-  bench("money-math-recipes  convert()", () => convert(100, "USD", "EUR", fxRates)),
+  bench("abakojs  convert()", () => convert(100, "USD", "EUR", fxRates)),
   bench("manual fx() + lookup", () => {
     const rate = fxRates.EUR / fxRates.USD;
     return Math.round(100 * rate * 100) / 100;

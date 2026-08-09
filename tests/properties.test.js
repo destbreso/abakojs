@@ -74,6 +74,27 @@ describe("engine correctness vs decimal.js oracle (HALF_EVEN)", () => {
     }
   });
 
+  // The oracle above never leaves six integer digits, so for a long time it
+  // could not see the question the precision ceiling is about: it never visited
+  // a magnitude where a double stops resolving a cent. An oracle that cannot
+  // reach a claim cannot check it, and the README's ceiling was wrong for
+  // exactly as long as that was true. This block walks the decade below the
+  // documented 2-decimal limit, where the answers must still be exact.
+  test(`add()/subtract() match oracle at ledger magnitudes across ${N} cases`, () => {
+    const CEILING = 2 ** 46; // $70,368,744,177,664, see tests/precision.test.js
+    for (let i = 0; i < N; i++) {
+      const x = randDecimalString(rnd, { maxInt: 13, maxFrac: 2, allowNeg: false });
+      const y = randDecimalString(rnd, { maxInt: 4, maxFrac: 2, allowNeg: false });
+      if (D(x).plus(D(y)).abs().toNumber() >= CEILING) continue;
+      expect(norm(money.add(x, y, 2))).toBe(
+        norm(D(x).plus(D(y)).toDecimalPlaces(2, Decimal.ROUND_HALF_EVEN).toNumber()),
+      );
+      expect(norm(money.subtract(x, y, 2))).toBe(
+        norm(D(x).minus(D(y)).toDecimalPlaces(2, Decimal.ROUND_HALF_EVEN).toNumber()),
+      );
+    }
+  });
+
   test(`multiply() matches oracle across ${N} cases`, () => {
     for (let i = 0; i < N; i++) {
       const x = randDecimalString(rnd, { maxInt: 4, maxFrac: 6 });

@@ -17,7 +17,7 @@ const currency = require("currency.js");
 const Decimal = require("decimal.js");
 const Big = require("big.js");
 const {
-  dinero, add: dAdd, multiply: dMul, allocate: dAllocate, toDecimal,
+  dinero, add: dAdd, multiply: dMul, allocate: dAllocate, toDecimal, transformScale, up,
 } = require("dinero.js");
 
 Decimal.set({ rounding: Decimal.ROUND_HALF_EVEN });
@@ -81,7 +81,7 @@ tasks.push({
       );
       const afterCoupon = dMul(sub, { amount: 95, scale: 2 });
       const withVat = dMul(afterCoupon, { amount: 121, scale: 2 });
-      return Number(toDecimal(withVat));
+      return Number(toDecimal(transformScale(withVat, 2, up)));
     },
   },
 });
