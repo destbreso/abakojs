@@ -1,5 +1,21 @@
 # Changelog
 
+## 3.0.2
+
+Documentation, and four claims that were not right.
+
+**The size figure measured the wrong thing.** The README quoted 3.4 KB gzipped, which is a deep import into the core and not what a consumer pays. Measured from `node bench/size.js`, which now carries a target for the real thing: **4.8 KB for one named import, 5.1 KB for the whole surface**. The old number stays in the table, relabeled as the deep import it always was. dinero's tree-shaken row is in there too, at 4.9 KB and 1.9 KB, with that comparison conceded outright rather than left out.
+
+**The recipes are locked to two decimals**, and four places implied otherwise, including the crypto use case. Stated in all four now, with a pointer to what to reach for instead.
+
+**`format` rounds, and `convert` goes through `parseFloat`.** Neither was documented, and the second one matters: the promise that every function takes strings at full precision does not hold for `convert`. Both are in the API reference now with the counterexamples that show it, and the "amounts that arrive as strings" bullet is narrowed to the arithmetic functions, which is where it is true.
+
+**`split` needs its weights to sum to 100.** Use `allocate` for arbitrary ratios. Said in the use case and in the recipes footer.
+
+Smaller: the throughput agreement reads "within about 5% across the runs of this harness I have" rather than "within 3%", which is what three datasets actually support; the big.js sentence now matches the column of the table beside it; `SATS` joins the crypto codes `format` accepts, which it has always accepted; and the test path in the precision section was wrong.
+
+Every code example on the page, all hundred-odd of them, was executed against the built package before this went out, and every number in the precision section came back from a fresh `npm run precision`.
+
 ## 3.0.1
 
 No change to the engine. Four claims in the README were wrong, and one of them was wrong at the exact number it printed.

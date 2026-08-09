@@ -1,6 +1,6 @@
 {
   "name": "abakojs",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "description": "Zero-dependency exact monetary arithmetic for JS & TS. BigInt-backed, configurable rounding (banker's by default), fees/discounts/split recipes, formatting & crypto. Plain numbers in, plain numbers out. ESM + CJS.",
   "author": "destbreso <destevezbreso@gmail.com>",
   "license": "MIT",
