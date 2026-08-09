@@ -26,11 +26,17 @@ const targets = [
     note: "full API (engine + arithmetic + recipes + format + convert)",
   },
   {
+    name: "abakojs (one named import)",
+    entry: `import { sum } from ${JSON.stringify(path.join(ROOT, "index.mjs"))};
+            globalThis.__sink = sum;`,
+    note: "what a consumer importing a single function actually ships",
+  },
+  {
     name: "abakojs (core)",
     entry: `import * as a from ${JSON.stringify(path.join(ROOT, "lib/arithmetic.js"))};
             import * as r from ${JSON.stringify(path.join(ROOT, "lib/recipes.js"))};
             globalThis.__sink = { a, r };`,
-    note: "engine + arithmetic + recipes (no Intl formatter/convert)",
+    note: "engine + arithmetic + recipes; deep import, NOT reachable through the package exports map",
   },
   {
     name: "currency.js",
