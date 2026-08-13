@@ -1,6 +1,6 @@
 name: CI/CD
 
-# Disabled – releases run locally via `pnpm release`
+# Disabled: releases run locally via `pnpm release`
 on:
   workflow_dispatch:
 

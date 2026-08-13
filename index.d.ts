@@ -278,7 +278,7 @@ export declare function convert(
   decimals?: number,
 ): number;
 
-// ─── Recipes — new names (preferred) ────────────────────────────────────────
+// ─── Recipes, new names (preferred) ────────────────────────────────────────
 
 /** Add a percentage surcharge to an amount. `addPercent(100, 10) → 110` */
 export declare function addPercent(amount: number | string, p: number): number;
@@ -324,7 +324,7 @@ export declare function deductFees(
   fee: number,
 ): number;
 
-// ─── Recipes — tax-inclusive / tax-exclusive (VAT) ──────────────────────────
+// ─── Recipes, tax-inclusive and tax-exclusive (VAT) ──────────────────────────
 
 /** Gross (tax-inclusive) from a net (tax-exclusive) amount. `grossFromNet(100, 21) → 121` */
 export declare function grossFromNet(net: number | string, p: number): number;
@@ -335,7 +335,7 @@ export declare function netFromGross(gross: number | string, p: number): number;
 /** The tax portion contained in a gross (tax-inclusive) amount. `taxFromGross(121, 21) → 21` */
 export declare function taxFromGross(gross: number | string, p: number): number;
 
-// ─── Recipes — deprecated (backward compatibility) ──────────────────────────
+// ─── Recipes, deprecated (backward compatibility) ──────────────────────────
 
 /** @deprecated Use `maxFee` instead. */
 export declare function maxTax(

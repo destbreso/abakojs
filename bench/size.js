@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * Bundle-size benchmark (minified + gzipped) — the metric that matters for install cost.
+ * Bundle-size benchmark (minified + gzipped), the metric that matters for install cost.
  *
  * Each library is bundled with esbuild (bundle + minify + tree-shake) exactly as an app
  * would ship it, then gzipped with zlib. We measure the "full public API" of each lib
@@ -17,7 +17,7 @@ const path = require("path");
 
 const ROOT = path.join(__dirname, "..");
 
-// entry source per library — reference the API so nothing is tree-shaken away
+// entry source per library: reference the API so nothing is tree-shaken away
 const targets = [
   {
     name: "abakojs",
@@ -100,10 +100,10 @@ async function measure(t) {
   }
 
   rows.sort((a, b) => (a.gz || Infinity) - (b.gz || Infinity));
-  const kb = (n) => (Number.isFinite(n) ? `${(n / 1024).toFixed(1)} KB` : "—");
+  const kb = (n) => (Number.isFinite(n) ? `${(n / 1024).toFixed(1)} KB` : "n/a");
 
   console.log(`\n${"─".repeat(78)}`);
-  console.log(" Bundle size — minified + gzipped (lower is better)");
+  console.log(" Bundle size, minified + gzipped (lower is better)");
   console.log(`${"─".repeat(78)}`);
   console.log(
     ` ${"Library".padEnd(24)} ${"min".padStart(9)} ${"min+gzip".padStart(10)}  note`,

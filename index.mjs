@@ -1,4 +1,4 @@
-// ESM entry point — wraps the CommonJS module for native import support
+// ESM entry point: wraps the CommonJS module for native import support
 import money from "./index.js";
 
 export const {

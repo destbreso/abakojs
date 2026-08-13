@@ -3,7 +3,7 @@
 /**
  * Ergonomics benchmark: the SAME real-world accounting task, implemented in each
  * library, run to prove they agree, and measured (source characters + library
- * API calls). The code below is real and executes — nothing is hand-waved.
+ * API calls). The code below is real and executes: nothing is hand-waved.
  *
  * Run:  node bench/ergonomics.js
  */

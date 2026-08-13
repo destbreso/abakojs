@@ -156,7 +156,7 @@ const partitionResults = [
     const parts = 3;
     const base = Math.round((total / parts) * 100) / 100;
     return Array.from({ length: parts }, () => base);
-    // (does NOT guarantee sum = total — that's the bug this library solves)
+    // (does NOT guarantee sum = total: that's the bug this library solves)
   }),
 ];
 
@@ -179,7 +179,7 @@ const sumResults = [
   bench("Native Array.reduce (unsafe)", () => amounts.reduce((a, b) => a + b, 0)),
 ];
 
-printTable("AGGREGATE  sum([0.1…1.0]) — 10 items", sumResults);
+printTable("AGGREGATE  sum([0.1...1.0]) over 10 items", sumResults);
 
 // ─── PERCENT ─────────────────────────────────────────────────────────────────
 

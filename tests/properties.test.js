@@ -4,7 +4,7 @@
  * Property / invariant tests.
  *
  * Correctness is cross-validated against decimal.js (an independent, widely-used
- * arbitrary-precision library) configured for ROUND_HALF_EVEN — the same mode
+ * arbitrary-precision library) configured for ROUND_HALF_EVEN: the same mode
  * abakojs uses by default. Thousands of random string inputs are fed to BOTH
  * and required to match exactly. This is the real proof of engine correctness;
  * the example-based tests in currency.js are documentation.

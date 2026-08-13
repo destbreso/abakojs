@@ -1,4 +1,4 @@
-# abakojs v3 — Redesign (the refounding)
+# abakojs v3, the refounding
 
 ## Why
 

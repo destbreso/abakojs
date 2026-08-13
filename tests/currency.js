@@ -148,7 +148,7 @@ describe("#money", () => {
     testValue(19.99, 19.99);
     testValue(49.995, 50);
 
-    // Crypto precision (8 decimals — BTC satoshi level)
+    // Crypto precision (8 decimals, BTC satoshi level)
     testValue(0.00000001, 0.00000001, 8); // 1 satoshi
     testValue(0.12345678, 0.12345678, 8);
     testValue(0.123456789, 0.12345679, 8); // 9th digit rounds up
@@ -1024,7 +1024,7 @@ describe("#money", () => {
         expect(compare(0.12345678, 0.12345679)).toEqual(0);
       });
 
-      // README examples — realistic prices
+      // README examples, realistic prices
       it("19.99 vs 24.99 returns -1", () => {
         expect(compare(19.99, 24.99)).toEqual(-1);
       });
@@ -1541,7 +1541,7 @@ describe("#money", () => {
         expect(equal(0.000000001, 0.000000002, 8)).toEqual(true);
       });
 
-      // README examples — realistic prices
+      // README examples, realistic prices
       it("19.99 equals 19.99", () => {
         expect(equal(19.99, 19.99)).toEqual(true);
       });
@@ -1597,7 +1597,7 @@ describe("#money", () => {
         expect(greaterThan(0.12345678, 0.12345679, 8)).toEqual(false);
       });
 
-      // README examples — realistic prices
+      // README examples, realistic prices
       it("24.99 > 19.99 is true", () => {
         expect(greaterThan(24.99, 19.99)).toEqual(true);
       });
@@ -1642,7 +1642,7 @@ describe("#money", () => {
         expect(greaterThanOrEqual(0.12345678, 0.12345679, 8)).toEqual(false);
       });
 
-      // README examples — realistic prices
+      // README examples, realistic prices
       it("24.99 >= 19.99 is true", () => {
         expect(greaterThanOrEqual(24.99, 19.99)).toEqual(true);
       });
@@ -1695,7 +1695,7 @@ describe("#money", () => {
         expect(lessThan(0.12345679, 0.12345678, 8)).toEqual(false);
       });
 
-      // README examples — realistic prices
+      // README examples, realistic prices
       it("14.99 < 19.99 is true", () => {
         expect(lessThan(14.99, 19.99)).toEqual(true);
       });
@@ -1740,7 +1740,7 @@ describe("#money", () => {
         expect(lessThanOrEqual(0.12345679, 0.12345678, 8)).toEqual(false);
       });
 
-      // README examples — realistic prices
+      // README examples, realistic prices
       it("14.99 <= 19.99 is true", () => {
         expect(lessThanOrEqual(14.99, 19.99)).toEqual(true);
       });
