@@ -31,7 +31,8 @@
     "doc-api": "jsdoc2md index.js > doc/API.md",
     "bench": "node bench/bench.js",
     "release": "release-it",
-    "precision": "node bench/precision.js"
+    "precision": "node bench/precision.js",
+    "prepublishOnly": "npm test"
   },
   "keywords": [
     "money",
